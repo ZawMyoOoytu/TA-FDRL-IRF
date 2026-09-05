@@ -1,0 +1,174 @@
+==============================================================================
+PHASE-4A PAIRED STATISTICAL ANALYSIS
+==============================================================================
+
+Project: TA-FDRL-IRF
+Phase: 4-A Polarization-Aware PHY
+
+Experimental conditions:
+  OFF = polarization-aware PHY disabled
+  ON  = polarization-aware PHY enabled
+
+The OFF and ON experiments are paired by random seed using common random numbers.
+Difference convention: ON - OFF
+Negative differences indicate degradation after enabling polarization-aware PHY.
+
+Seeds:
+  42, 123, 2026, 4096, 7777, 9999
+
+------------------------------------------------------------------------------
+SUMMARY
+------------------------------------------------------------------------------
+
+Metric                              OFF            ON      Change %        p(t)        p(W)          dz
+------------------------------------------------------------------------------
+total_reward                  57.359596     56.455691      -1.5759%    0.015864    0.031250     -1.4618
+mean_reward                    0.286798      0.282278      -1.5759%    0.015865    0.031250     -1.4618
+spectral_efficiency            0.077158      0.075900      -1.6303%    0.016548    0.031250     -1.4455
+energy_efficiency         783342.650000 770387.550000      -1.6538%    0.013721    0.031250     -1.5184
+
+==============================================================================
+TOTAL_REWARD
+==============================================================================
+
+OFF mean             : 57.359596000000
+ON mean              : 56.455691333333
+Mean difference      : -0.903904666667
+Std difference       : 0.618358162937
+95% CI               : [-1.552831761073, -0.254977572260]
+Percent change       : -1.575856%
+
+Paired t-test:
+  t                  : -3.58061936
+  p                  : 0.01586447
+  interpretation     : statistically significant
+
+Wilcoxon signed-rank test:
+  W                  : 0.00000000
+  p                  : 0.03125000
+  interpretation     : statistically significant
+
+Effect size:
+  Cohen's dz         : -1.46178173
+  magnitude           : large
+
+Per-seed paired differences (ON - OFF):
+  seed=42    -0.389141000000
+  seed=123   -1.218700000000
+  seed=2026  -1.828547000000
+  seed=4096  -0.277953000000
+  seed=7777  -0.469768000000
+  seed=9999  -1.239319000000
+
+==============================================================================
+MEAN_REWARD
+==============================================================================
+
+OFF mean             : 0.286797981667
+ON mean              : 0.282278461667
+Mean difference      : -0.004519520000
+Std difference       : 0.003091790622
+95% CI               : [-0.007764155269, -0.001274884731]
+Percent change       : -1.575855%
+
+Paired t-test:
+  t                  : -3.58061694
+  p                  : 0.01586451
+  interpretation     : statistically significant
+
+Wilcoxon signed-rank test:
+  W                  : 0.00000000
+  p                  : 0.03125000
+  interpretation     : statistically significant
+
+Effect size:
+  Cohen's dz         : -1.46178075
+  magnitude           : large
+
+Per-seed paired differences (ON - OFF):
+  seed=42    -0.001945700000
+  seed=123   -0.006093500000
+  seed=2026  -0.009142730000
+  seed=4096  -0.001389760000
+  seed=7777  -0.002348840000
+  seed=9999  -0.006196590000
+
+==============================================================================
+SPECTRAL_EFFICIENCY
+==============================================================================
+
+OFF mean             : 0.077157955000
+ON mean              : 0.075900011667
+Mean difference      : -0.001257943333
+Std difference       : 0.000870221724
+95% CI               : [-0.002171185025, -0.000344701642]
+Percent change       : -1.630348%
+
+Paired t-test:
+  t                  : -3.54084391
+  p                  : 0.01654772
+  interpretation     : statistically significant
+
+Wilcoxon signed-rank test:
+  W                  : 0.00000000
+  p                  : 0.03125000
+  interpretation     : statistically significant
+
+Effect size:
+  Cohen's dz         : -1.44554347
+  magnitude           : large
+
+Per-seed paired differences (ON - OFF):
+  seed=42    -0.000430480000
+  seed=123   -0.001563340000
+  seed=2026  -0.002503790000
+  seed=4096  -0.000488640000
+  seed=7777  -0.000623640000
+  seed=9999  -0.001937770000
+
+==============================================================================
+ENERGY_EFFICIENCY
+==============================================================================
+
+OFF mean             : 783342.650000000023
+ON mean              : 770387.550000000163
+Mean difference      : -12955.099999999977
+Std difference       : 8531.917263933121
+95% CI               : [-21908.798053415230, -4001.401946584725]
+Percent change       : -1.653823%
+
+Paired t-test:
+  t                  : -3.71937322
+  p                  : 0.01372101
+  interpretation     : statistically significant
+
+Wilcoxon signed-rank test:
+  W                  : 0.00000000
+  p                  : 0.03125000
+  interpretation     : statistically significant
+
+Effect size:
+  Cohen's dz         : -1.51842776
+  magnitude           : large
+
+Per-seed paired differences (ON - OFF):
+  seed=42    -2300.589999999967
+  seed=123   -18401.739999999991
+  seed=2026  -24859.719999999972
+  seed=4096  -5520.979999999981
+  seed=7777  -9894.089999999967
+  seed=9999  -16753.479999999981
+
+==============================================================================
+SCIENTIFIC INTERPRETATION
+==============================================================================
+
+Across six controlled random seeds, enabling the polarization-aware PHY model changed the mean total reward by -1.58% relative to the polarization-disabled condition.
+
+The corresponding spectral-efficiency change was -1.63%, while the energy-efficiency change was -1.65%.
+
+The paired statistical tests should be interpreted cautiously because the benchmark contains only six independent random seeds.
+
+The purpose of this analysis is therefore to quantify the direction, magnitude, and uncertainty of the polarization effect rather than to claim broad statistical generalization from a small sample.
+
+Phase-4A status: statistical validation generated.

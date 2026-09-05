@@ -1,0 +1,380 @@
+TA-FDRL-IRF | PHASE-4A MULTI-SEED POLARIZATION BENCHMARK
+======================================================================
+
+Project root: C:\Users\heart\TA-FDRL-IRF
+Seeds: [42, 123, 2026, 4096, 7777, 9999]
+Number of seeds: 6
+Steps per run: 200
+State dimension: 100
+Action dimension: 40
+Adaptive trust: ENABLED
+RIS optimization: DISABLED
+SAC training: NOT PERFORMED
+
+======================================================================
+BENCHMARK METHODOLOGY
+======================================================================
+
+Polarization OFF and ON are evaluated using the same seed-specific external action sequence.
+Environment channel randomness is separated from dynamics randomness.
+The same seed is used for the corresponding OFF and ON environment resets.
+Adaptive trust remains enabled.
+RIS optimization remains disabled.
+State and action dimensions remain unchanged from Phase-3 baseline.
+
+======================================================================
+PER-SEED RESULTS
+======================================================================
+
+Seed 42
+--------------------------------------------------
+Steps OFF: 200
+Steps ON : 200
+
+OFF total reward: 56.9524061110
+ON total reward : 56.5632654686
+Reward change: -0.683273%
+
+OFF mean reward: 0.2847620306
+ON mean reward : 0.2828163273
+
+OFF spectral efficiency: 0.0767268531
+ON spectral efficiency : 0.0762963736
+SE change: -0.561055%
+
+OFF energy efficiency: 769483.3796471299
+ON energy efficiency : 767182.7948917323
+EE change: -0.298978%
+
+OFF initial trust: 0.8579702506
+ON initial trust : 0.8579702506
+Initial trust difference: 0.000000000000e+00
+
+OFF mean trust: 0.6017540734
+ON mean trust : 0.6013539849
+OFF final trust: 0.3184449113
+ON final trust : 0.3179974091
+Trust-change difference: -0.0004475022
+
+OFF mean queue: 0.9293898729
+ON mean queue : 0.9299708686
+OFF final queue: 0.9999776048
+ON final queue : 0.9997100768
+
+Seed 123
+--------------------------------------------------
+Steps OFF: 200
+Steps ON : 200
+
+OFF total reward: 58.2948711497
+ON total reward : 57.0761710527
+Reward change: -2.090579%
+
+OFF mean reward: 0.2914743557
+ON mean reward : 0.2853808553
+
+OFF spectral efficiency: 0.0775504662
+ON spectral efficiency : 0.0759871339
+SE change: -2.015890%
+
+OFF energy efficiency: 796728.6451224424
+ON energy efficiency : 778326.9111836597
+EE change: -2.309661%
+
+OFF initial trust: 0.8628552811
+ON initial trust : 0.8628552811
+Initial trust difference: 0.000000000000e+00
+
+OFF mean trust: 0.6039909693
+ON mean trust : 0.6036447269
+OFF final trust: 0.3205215307
+ON final trust : 0.3198660872
+Trust-change difference: -0.0006554435
+
+OFF mean queue: 0.9356546417
+ON mean queue : 0.9359316985
+OFF final queue: 1.0000000000
+ON final queue : 1.0000000000
+
+Seed 2026
+--------------------------------------------------
+Steps OFF: 200
+Steps ON : 200
+
+OFF total reward: 58.0698502957
+ON total reward : 56.2413034153
+Reward change: -3.148875%
+
+OFF mean reward: 0.2903492515
+ON mean reward : 0.2812065171
+
+OFF spectral efficiency: 0.0781751531
+ON spectral efficiency : 0.0756713565
+SE change: -3.202804%
+
+OFF energy efficiency: 786164.3623992326
+ON energy efficiency : 761304.6402579603
+EE change: -3.162153%
+
+OFF initial trust: 0.8573098746
+ON initial trust : 0.8573098746
+Initial trust difference: 0.000000000000e+00
+
+OFF mean trust: 0.6017828485
+ON mean trust : 0.6008475983
+OFF final trust: 0.3188395128
+ON final trust : 0.3173890004
+Trust-change difference: -0.0014505125
+
+OFF mean queue: 0.9281444260
+ON mean queue : 0.9293967766
+OFF final queue: 0.9992072548
+ON final queue : 0.9997054645
+
+Seed 4096
+--------------------------------------------------
+Steps OFF: 200
+Steps ON : 200
+
+OFF total reward: 56.8049215079
+ON total reward : 56.5269693240
+Reward change: -0.489310%
+
+OFF mean reward: 0.2840246075
+ON mean reward : 0.2826348466
+
+OFF spectral efficiency: 0.0768119951
+ON spectral efficiency : 0.0763233567
+SE change: -0.636149%
+
+OFF energy efficiency: 778457.3276629138
+ON energy efficiency : 772936.3545287383
+EE change: -0.709220%
+
+OFF initial trust: 0.8502724541
+ON initial trust : 0.8502724541
+Initial trust difference: 0.000000000000e+00
+
+OFF mean trust: 0.5927551881
+ON mean trust : 0.5926847526
+OFF final trust: 0.3093385940
+ON final trust : 0.3092823841
+Trust-change difference: -0.0000562099
+
+OFF mean queue: 0.9321812137
+ON mean queue : 0.9319442246
+OFF final queue: 1.0000000000
+ON final queue : 1.0000000000
+
+Seed 7777
+--------------------------------------------------
+Steps OFF: 200
+Steps ON : 200
+
+OFF total reward: 55.7915912697
+ON total reward : 55.3218229412
+Reward change: -0.842006%
+
+OFF mean reward: 0.2789579563
+ON mean reward : 0.2766091147
+
+OFF spectral efficiency: 0.0753236394
+ON spectral efficiency : 0.0746999990
+SE change: -0.827948%
+
+OFF energy efficiency: 772036.9026213217
+ON energy efficiency : 762142.8139197523
+EE change: -1.281556%
+
+OFF initial trust: 0.8482211648
+ON initial trust : 0.8482211648
+Initial trust difference: 0.000000000000e+00
+
+OFF mean trust: 0.5932134930
+ON mean trust : 0.5928047693
+OFF final trust: 0.3098181198
+ON final trust : 0.3093926816
+Trust-change difference: -0.0004254382
+
+OFF mean queue: 0.9260697207
+ON mean queue : 0.9264357064
+OFF final queue: 1.0000000000
+ON final queue : 1.0000000000
+
+Seed 9999
+--------------------------------------------------
+Steps OFF: 200
+Steps ON : 200
+
+OFF total reward: 58.2439361864
+ON total reward : 57.0046174759
+Reward change: -2.127807%
+
+OFF mean reward: 0.2912196809
+ON mean reward : 0.2850230874
+
+OFF spectral efficiency: 0.0783596234
+ON spectral efficiency : 0.0764218494
+SE change: -2.472924%
+
+OFF energy efficiency: 797185.2755689285
+ON energy efficiency : 780431.7975467162
+EE change: -2.101579%
+
+OFF initial trust: 0.8482587332
+ON initial trust : 0.8482587332
+Initial trust difference: 0.000000000000e+00
+
+OFF mean trust: 0.5913452032
+ON mean trust : 0.5909488984
+OFF final trust: 0.3082334166
+ON final trust : 0.3074959104
+Trust-change difference: -0.0007375062
+
+OFF mean queue: 0.9313937823
+ON mean queue : 0.9316107920
+OFF final queue: 1.0000000000
+ON final queue : 1.0000000000
+
+======================================================================
+STATISTICAL SUMMARY
+======================================================================
+
+Total Reward
+  OFF mean = 57.3595960867
+  OFF std = 1.0092932743
+  OFF 95% CI +/- = 0.8076028175
+  ON mean = 56.4556916129
+  ON std = 0.6379008463
+  ON 95% CI +/- = 0.5104269828
+  OFF -> ON change = -1.575856%
+
+Mean Reward
+  OFF mean = 0.2867979804
+  OFF std = 0.0050464664
+  OFF 95% CI +/- = 0.0040380141
+  ON mean = 0.2822784581
+  ON std = 0.0031895042
+  ON 95% CI +/- = 0.0025521349
+  OFF -> ON change = -1.575856%
+
+Spectral Efficiency
+  OFF mean = 0.0771579550
+  OFF std = 0.0011227657
+  OFF 95% CI +/- = 0.0008983997
+  ON mean = 0.0759000115
+  ON std = 0.0006493909
+  ON 95% CI +/- = 0.0005196209
+  OFF -> ON change = -1.630348%
+
+Energy Efficiency
+  OFF mean = 783342.6488369949
+  OFF std = 12021.0721798452
+  OFF 95% CI +/- = 9618.8610472505
+  ON mean = 770387.5520547599
+  ON std = 8138.3308734525
+  ON 95% CI +/- = 6512.0209459799
+  OFF -> ON change = -1.653822%
+
+Mean Trust
+  OFF mean = 0.5974736293
+  OFF std = 0.0056095873
+  OFF 95% CI +/- = 0.0044886047
+  ON mean = 0.5970474551
+  ON std = 0.0054906690
+  ON 95% CI +/- = 0.0043934502
+  OFF -> ON change = -0.071329%
+
+Trust Change
+  OFF mean = -0.5399486122
+  OFF std = 0.0015112011
+  OFF 95% CI +/- = 0.0012092127
+  ON mean = -0.5405773809
+  ON std = 0.0014054647
+  ON 95% CI +/- = 0.0011246059
+  OFF -> ON change = -0.116450%
+
+Mean Queue
+  OFF mean = 0.9304722762
+  OFF std = 0.0033645068
+  OFF 95% CI +/- = 0.0026921662
+  ON mean = 0.9308816778
+  ON std = 0.0031611545
+  ON 95% CI +/- = 0.0025294504
+  OFF -> ON change = +0.043999%
+
+Final Trust
+  OFF mean = 0.3141993475
+  OFF std = 0.0056203267
+  OFF 95% CI +/- = 0.0044971980
+  ON mean = 0.3135705788
+  ON std = 0.0054139751
+  ON 95% CI +/- = 0.0043320823
+  OFF -> ON change = -0.200118%
+
+Final Queue
+  OFF mean = 0.9998641433
+  OFF std = 0.0003219330
+  OFF 95% CI +/- = 0.0002576000
+  ON mean = 0.9999025902
+  ON std = 0.0001509136
+  ON 95% CI +/- = 0.0001207561
+  OFF -> ON change = +0.003845%
+
+======================================================================
+PAIRED ON - OFF DIFFERENCES
+======================================================================
+
+Total Reward
+  Mean ON-OFF difference = -0.9039044738
+  Std difference = 0.6183582843
+  95% CI +/- = 0.4947896764
+
+Mean Reward
+  Mean ON-OFF difference = -0.0045195224
+  Std difference = 0.0030917914
+  95% CI +/- = 0.0024739484
+
+Spectral Efficiency
+  Mean ON-OFF difference = -0.0012579435
+  Std difference = 0.0008702240
+  95% CI +/- = 0.0006963242
+
+Energy Efficiency
+  Mean ON-OFF difference = -12955.0967822350
+  Std difference = 8531.9195110232
+  95% CI +/- = 6826.9574473110
+
+Mean Trust
+  Mean ON-OFF difference = -0.0004261742
+  Std difference = 0.0002807044
+  95% CI +/- = 0.0002246103
+
+Trust Change
+  Mean ON-OFF difference = -0.0006287687
+  Std difference = 0.0004668667
+  95% CI +/- = 0.0003735712
+
+Mean Queue
+  Mean ON-OFF difference = 0.0004094016
+  Std difference = 0.0004927967
+  95% CI +/- = 0.0003943195
+
+======================================================================
+COMMON-RANDOMNESS VERIFICATION
+======================================================================
+
+Same seed-specific action sequence: YES
+Channel RNG separated from dynamics RNG: YES
+Same initial trust OFF/ON target: YES
+Maximum initial-trust difference: 0.000000000000e+00
+Initial trust consistency: PASS
+
+======================================================================
+FINAL STATUS
+======================================================================
+
+Environment validation: PASSED
+Controlled action sequence: PASSED
+Multi-seed benchmark: COMPLETED
+SAC training: NOT PERFORMED

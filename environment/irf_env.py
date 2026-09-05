@@ -1,4 +1,3 @@
-
 # =========================================================
 # irf_env.py
 #
@@ -6,23 +5,45 @@
 # Trust-Aware Adaptive Federated Deep Reinforcement
 # Learning for Intelligent Radio Fabric in 6G Networks
 #
-# Phase-3:
-# SAC + Adaptive Trust
+# Phase-4A:
+# Polarization-Aware PHY
 #
-# Fixed RIS
-# Dynamic / Adaptive Trust
+# SAC architecture:
+#     UNCHANGED
 #
-# Corrected Phase-3 Environment
+# State:
+#     100
 #
-# Main improvements:
-#   1. Bidirectional adaptive trust update
-#   2. Explicit trust-delta reward
-#   3. Configurable target service rate
-#   4. Trust behavior score tracking
-#   5. Trust trajectory tracking
-#   6. Queue/interference/stability tracking
-#   7. Numerical safety
-#   8. Phase-2-compatible interface
+# Action:
+#     40
+#
+# RIS:
+#     Fixed
+#
+# Trust:
+#     Adaptive
+#
+# Main Phase-4A addition:
+#
+#     H_p =
+#     [ h_VV  h_VH ]
+#     [ h_HV  h_HH ]
+#
+#     Polarization-aware effective channel
+#
+# Research-grade RNG architecture:
+#
+#     Channel RNG
+#         -> scalar channels
+#         -> polarization channels
+#
+#     Dynamics RNG
+#         -> initial queue
+#         -> initial trust
+#         -> queue arrivals
+#
+# This prevents polarization-specific random channel generation
+# from changing the stochastic environment dynamics.
 # =========================================================
 
 from __future__ import annotations
@@ -53,6 +74,32 @@ class IRFConfig:
     carrier_frequency_hz: float = 28e9
 
     # =====================================================
+    # Polarization — Phase 4A
+    # =====================================================
+
+    polarization_enabled: bool = True
+
+    # Cross-polarization coupling.
+    #
+    # 0.0:
+    #     no cross-polarization coupling
+    #
+    # 1.0:
+    #     strong cross-polarization coupling
+    #
+    # Phase-4A baseline:
+    #     0.15
+    #
+
+    cross_polarization_factor: float = 0.15
+
+    # Relative V/H polarization strengths.
+
+    polarization_v_strength: float = 1.0
+
+    polarization_h_strength: float = 1.0
+
+    # =====================================================
     # Power
     # =====================================================
 
@@ -80,41 +127,31 @@ class IRFConfig:
 
     # False = fixed RIS
     # True  = RIS optimization enabled
+
     optimize_ris: bool = False
 
     # True  = trust remains at 1.0
     # False = adaptive trust
+
     fixed_trust: bool = False
 
     # =====================================================
     # Adaptive Trust
     # =====================================================
 
-    # Historical trust contribution.
-    #
-    # Larger value:
-    #   slower trust adaptation
-    #
-    # Smaller value:
-    #   faster trust adaptation
     trust_memory: float = 0.90
 
-    # Trust learning rate.
     trust_learning_rate: float = 0.10
 
     # Target service rate per user.
     #
     # 1e7 = 10 Mbps.
-    #
-    # Service quality:
-    #
-    #     rate / target_rate
-    #
+
     trust_target_rate_bps: float = 1e7
 
-    # -----------------------------------------------------
+    # =====================================================
     # Trust behavior weights
-    # -----------------------------------------------------
+    # =====================================================
 
     trust_service_weight: float = 0.35
 
@@ -124,26 +161,12 @@ class IRFConfig:
 
     trust_instability_weight: float = 0.20
 
-    # -----------------------------------------------------
+    # =====================================================
     # Trust reference point
-    #
-    # behavior > 0.5:
-    #       positive trust movement
-    #
-    # behavior < 0.5:
-    #       negative trust movement
-    #
-    # behavior = 0.5:
-    #       approximately stable
-    # -----------------------------------------------------
+    # =====================================================
 
     trust_neutral_point: float = 0.50
 
-    # Optional trust floor.
-    #
-    # 0.0 means no artificial lower bound.
-    # This is kept as a configuration parameter so
-    # experiments can explicitly define a minimum trust.
     trust_floor: float = 0.0
 
     # =====================================================
@@ -156,8 +179,6 @@ class IRFConfig:
 
     trust_weight: float = 0.15
 
-    # NEW:
-    # Direct reward for improving trust.
     trust_delta_weight: float = 0.10
 
     interference_penalty: float = 0.05
@@ -170,20 +191,8 @@ class IRFConfig:
     # Reward normalization
     # =====================================================
 
-    # SE target.
-    #
-    # SE normalized as:
-    #
-    #     SE / se_target
-    #
     se_target: float = 0.20
 
-    # EE target.
-    #
-    # EE normalized as:
-    #
-    #     EE / ee_target
-    #
     ee_target: float = 1e6
 
     # =====================================================
@@ -199,16 +208,11 @@ class IRFConfig:
 
 class IRFEnvironment:
     """
-    Trust-Aware Adaptive Federated Deep Reinforcement
-    Learning for Intelligent Radio Fabric in 6G Networks.
+    TA-FDRL-IRF Phase-4A environment.
 
-    Phase-3 environment:
-
-        SAC
-        +
-        Adaptive Trust
-        +
-        Fixed RIS
+    Polarization-aware PHY
+    + Adaptive Trust
+    + Fixed RIS
 
     -----------------------------------------------------
     State
@@ -222,65 +226,99 @@ class IRFEnvironment:
         4. Power
         5. Trust
 
-    For N users:
+    For 20 users:
 
-        state_dim = 5N
+        state_dim = 20 * 5
+                  = 100
 
     -----------------------------------------------------
     Action
     -----------------------------------------------------
 
-    Base action:
+    Bandwidth allocation:
 
-        bandwidth allocation: N
-        power allocation:     N
+        20
+
+    Power allocation:
+
+        20
 
     Total:
 
-        2N
+        action_dim = 40
 
-    If RIS optimization is enabled:
+    RIS optimization is disabled in Phase-4A.
 
-        + num_ris_elements
+    -----------------------------------------------------
+    Polarization
+    -----------------------------------------------------
+
+    Each channel is represented by:
+
+        H_p =
+        [ h_VV  h_VH ]
+        [ h_HV  h_HH ]
+
+    where:
+
+        VV = V transmit -> V receive
+        VH = H transmit -> V receive
+        HV = V transmit -> H receive
+        HH = H transmit -> H receive
+
+    Phase-4A uses V-polarized transmission as
+    the reference transmission vector.
+
+    -----------------------------------------------------
+    Effective polarization channel
+    -----------------------------------------------------
+
+        H_eff =
+            H_direct
+            +
+            sum_n(
+                phi_n *
+                H_RIS_user,n *
+                H_BS_RIS,n
+            )
 
     -----------------------------------------------------
     Trust
     -----------------------------------------------------
 
-    Trust is dynamically updated from:
+    Adaptive trust is calculated from:
 
-        - service quality
-        - interference quality
-        - queue quality
-        - temporal stability
-
-    Unlike the original Phase-3 formulation, the
-    trust update is centered around a neutral point.
-
-        behavior_score > neutral point
-            -> trust increases
-
-        behavior_score < neutral point
-            -> trust decreases
-
-        behavior_score ~= neutral point
-            -> trust remains approximately stable
+        service quality
+        interference quality
+        queue quality
+        temporal stability
 
     -----------------------------------------------------
     Reward
     -----------------------------------------------------
 
         R =
-            w_SE * SE
-          + w_EE * EE
-          + w_T  * Trust
-          + w_dT * DeltaTrust
-          - w_I * Interference
-          - w_P * Power
-          - w_Q * Queue
+            w_SE * normalized_SE
+          + w_EE * normalized_EE
+          + w_T  * mean_trust
+          + w_dT * trust_delta
+          - w_I * interference
+          - w_P * power
+          - w_Q * queue
 
-    This explicitly encourages the SAC agent to improve
-    both communication performance and trust.
+    -----------------------------------------------------
+    RNG Architecture
+    -----------------------------------------------------
+
+    Channel RNG:
+        Used exclusively for channel realizations.
+
+    Dynamics RNG:
+        Used exclusively for stochastic environment dynamics.
+
+    The two streams are independent and deterministic.
+
+    This allows fair Polarization OFF vs ON comparison.
     """
 
     # =====================================================
@@ -302,13 +340,51 @@ class IRFEnvironment:
 
         self.num_ris = self.cfg.num_ris_elements
 
-        # -------------------------------------------------
-        # Random generator
-        # -------------------------------------------------
+        # =================================================
+        # Research-grade independent RNG streams
+        # =================================================
 
-        self.rng = np.random.default_rng(
+        self.base_seed = int(
             self.cfg.seed
         )
+
+        # -------------------------------------------------
+        # Channel RNG
+        #
+        # Used only for:
+        #
+        #   scalar channels
+        #   polarization channels
+        # -------------------------------------------------
+
+        self.channel_rng = np.random.default_rng(
+            self.base_seed + 1000
+        )
+
+        # -------------------------------------------------
+        # Dynamics RNG
+        #
+        # Used only for:
+        #
+        #   initial queue
+        #   initial trust
+        #   queue arrivals
+        # -------------------------------------------------
+
+        self.dynamics_rng = np.random.default_rng(
+            self.base_seed + 2000
+        )
+
+        # -------------------------------------------------
+        # Backward compatibility
+        #
+        # Existing code that references self.rng
+        # continues to operate.
+        #
+        # self.rng now maps to dynamics RNG.
+        # -------------------------------------------------
+
+        self.rng = self.dynamics_rng
 
         # -------------------------------------------------
         # Episode state
@@ -325,7 +401,9 @@ class IRFEnvironment:
         )
 
         # -------------------------------------------------
-        # Channel variables
+        # Scalar channel variables
+        #
+        # Kept for Phase-3 compatibility.
         # -------------------------------------------------
 
         self.direct_channel = None
@@ -333,6 +411,28 @@ class IRFEnvironment:
         self.bs_ris_channel = None
 
         self.ris_user_channel = None
+
+        # -------------------------------------------------
+        # Polarization channel variables
+        #
+        # direct:
+        #
+        #   (users, rx_pol, tx_pol)
+        #
+        # BS -> RIS:
+        #
+        #   (ris, rx_pol, tx_pol)
+        #
+        # RIS -> user:
+        #
+        #   (users, ris, rx_pol, tx_pol)
+        # -------------------------------------------------
+
+        self.direct_polarization_channel = None
+
+        self.bs_ris_polarization_channel = None
+
+        self.ris_user_polarization_channel = None
 
         # -------------------------------------------------
         # State variables
@@ -361,7 +461,7 @@ class IRFEnvironment:
         self.previous_trust = None
 
         # -------------------------------------------------
-        # Current trust diagnostics
+        # Trust diagnostics
         # -------------------------------------------------
 
         self.behavior_score = None
@@ -369,6 +469,81 @@ class IRFEnvironment:
         self.trust_delta = None
 
         self.mean_trust = 0.0
+
+        # -------------------------------------------------
+        # Performance diagnostics
+        # -------------------------------------------------
+
+        self.rates = None
+
+        self.spectral_efficiency = 0.0
+
+        self.energy_efficiency = 0.0
+
+        self.mean_queue = 0.0
+
+        self.mean_power = 0.0
+
+        self.interference_ratio = 0.0
+
+        # -------------------------------------------------
+        # Research diagnostics
+        #
+        # Useful for controlled OFF vs ON experiments.
+        # -------------------------------------------------
+
+        self.last_arrivals = None
+
+    # =====================================================
+    # RANDOM SEED CONTROL
+    # =====================================================
+
+    def set_seed(
+        self,
+        seed: int,
+    ) -> None:
+
+        """
+        Configure independent deterministic RNG streams.
+
+        Channel RNG:
+            Used exclusively for channel realizations.
+
+        Dynamics RNG:
+            Used exclusively for queue/trust/dynamics.
+
+        Seed offsets:
+
+            channel = seed + 1000
+            dynamics = seed + 2000
+
+        The offsets ensure independent random streams while
+        preserving deterministic reproducibility.
+        """
+
+        self.base_seed = int(seed)
+
+        # -------------------------------------------------
+        # Independent channel stream
+        # -------------------------------------------------
+
+        self.channel_rng = np.random.default_rng(
+            self.base_seed + 1000
+        )
+
+        # -------------------------------------------------
+        # Independent dynamics stream
+        # -------------------------------------------------
+
+        self.dynamics_rng = np.random.default_rng(
+            self.base_seed + 2000
+        )
+
+        # -------------------------------------------------
+        # Backward compatibility
+        # -------------------------------------------------
+
+        self.rng = self.dynamics_rng
 
     # =====================================================
     # RESET
@@ -378,23 +553,27 @@ class IRFEnvironment:
         self,
         seed: int | None = None,
     ) -> np.ndarray:
-        """
-        Reset the environment.
 
-        A new channel realization and new adaptive-trust
-        state are generated.
+        """
+        Reset environment.
+
+        A new channel realization and trust state
+        are generated.
+
+        If a seed is supplied, both independent RNG
+        streams are deterministically reinitialized.
         """
 
         if seed is not None:
 
-            self.rng = np.random.default_rng(
+            self.set_seed(
                 seed
             )
 
         self.step_count = 0
 
         # -------------------------------------------------
-        # Generate channel
+        # Generate channels
         # -------------------------------------------------
 
         self._generate_channels()
@@ -418,10 +597,13 @@ class IRFEnvironment:
         )
 
         # -------------------------------------------------
-        # Initial queues
+        # Initial queue
+        #
+        # IMPORTANT:
+        # Dynamics RNG only.
         # -------------------------------------------------
 
-        self.queue = self.rng.uniform(
+        self.queue = self.dynamics_rng.uniform(
             0.10,
             0.30,
             size=self.num_users,
@@ -439,6 +621,9 @@ class IRFEnvironment:
 
         # -------------------------------------------------
         # Initial trust
+        #
+        # IMPORTANT:
+        # Dynamics RNG only.
         # -------------------------------------------------
 
         if self.cfg.fixed_trust:
@@ -450,15 +635,14 @@ class IRFEnvironment:
 
         else:
 
-            # Heterogeneous initial trust.
-            self.trust = self.rng.uniform(
+            self.trust = self.dynamics_rng.uniform(
                 0.75,
                 0.95,
                 size=self.num_users,
             )
 
         # -------------------------------------------------
-        # Historical variables
+        # Previous variables
         # -------------------------------------------------
 
         self.previous_queue = (
@@ -496,6 +680,38 @@ class IRFEnvironment:
             np.mean(self.trust)
         )
 
+        # -------------------------------------------------
+        # Performance diagnostics
+        # -------------------------------------------------
+
+        self.rates = np.zeros(
+            self.num_users,
+            dtype=np.float64,
+        )
+
+        self.spectral_efficiency = 0.0
+
+        self.energy_efficiency = 0.0
+
+        self.mean_queue = float(
+            np.mean(self.queue)
+        )
+
+        self.mean_power = float(
+            np.mean(self.power)
+        )
+
+        self.interference_ratio = 0.0
+
+        # -------------------------------------------------
+        # Research diagnostics
+        # -------------------------------------------------
+
+        self.last_arrivals = np.zeros(
+            self.num_users,
+            dtype=np.float64,
+        )
+
         return self._get_state()
 
     # =====================================================
@@ -504,47 +720,53 @@ class IRFEnvironment:
 
     def _generate_channels(self):
 
-        # -------------------------------------------------
-        # Direct BS-user channel
-        # -------------------------------------------------
+        """
+        Generate all PHY/channel realizations.
+
+        IMPORTANT:
+
+        Every channel-related random sample comes
+        exclusively from channel_rng.
+
+        This prevents queue/trust dynamics from being
+        affected by additional polarization random draws.
+        """
+
+        # =================================================
+        # Phase-3 scalar channels
+        #
+        # Kept for compatibility and fallback.
+        # =================================================
 
         self.direct_channel = (
-            self.rng.normal(
+            self.channel_rng.normal(
                 size=self.num_users
             )
             + 1j
-            * self.rng.normal(
+            * self.channel_rng.normal(
                 size=self.num_users
             )
         ) / np.sqrt(2.0)
-
-        # -------------------------------------------------
-        # BS-RIS channel
-        # -------------------------------------------------
 
         self.bs_ris_channel = (
-            self.rng.normal(
+            self.channel_rng.normal(
                 size=self.num_ris
             )
             + 1j
-            * self.rng.normal(
+            * self.channel_rng.normal(
                 size=self.num_ris
             )
         ) / np.sqrt(2.0)
-
-        # -------------------------------------------------
-        # RIS-user channel
-        # -------------------------------------------------
 
         self.ris_user_channel = (
-            self.rng.normal(
+            self.channel_rng.normal(
                 size=(
                     self.num_users,
                     self.num_ris,
                 )
             )
             + 1j
-            * self.rng.normal(
+            * self.channel_rng.normal(
                 size=(
                     self.num_users,
                     self.num_ris,
@@ -552,14 +774,193 @@ class IRFEnvironment:
             )
         ) / np.sqrt(2.0)
 
+        # =================================================
+        # Phase-4A polarization channels
+        # =================================================
+
+        if not self.cfg.polarization_enabled:
+
+            self.direct_polarization_channel = None
+
+            self.bs_ris_polarization_channel = None
+
+            self.ris_user_polarization_channel = None
+
+            return
+
+        # -------------------------------------------------
+        # Polarization parameters
+        # -------------------------------------------------
+
+        v_strength = (
+            self.cfg.polarization_v_strength
+        )
+
+        h_strength = (
+            self.cfg.polarization_h_strength
+        )
+
+        xpol = (
+            self.cfg.cross_polarization_factor
+        )
+
+        # =================================================
+        # Direct BS -> User
+        #
+        # Shape:
+        #
+        #   (users, 2, 2)
+        #
+        # Ordering:
+        #
+        #   [rx polarization, tx polarization]
+        #
+        #   0 = V
+        #   1 = H
+        # =================================================
+
+        self.direct_polarization_channel = (
+            self.channel_rng.normal(
+                size=(
+                    self.num_users,
+                    2,
+                    2,
+                )
+            )
+            + 1j
+            * self.channel_rng.normal(
+                size=(
+                    self.num_users,
+                    2,
+                    2,
+                )
+            )
+        ) / np.sqrt(2.0)
+
+        # -------------------------------------------------
+        # Co-polarized components
+        # -------------------------------------------------
+
+        self.direct_polarization_channel[
+            :, 0, 0
+        ] *= v_strength
+
+        self.direct_polarization_channel[
+            :, 1, 1
+        ] *= h_strength
+
+        # -------------------------------------------------
+        # Cross-polarized components
+        # -------------------------------------------------
+
+        self.direct_polarization_channel[
+            :, 0, 1
+        ] *= xpol
+
+        self.direct_polarization_channel[
+            :, 1, 0
+        ] *= xpol
+
+        # =================================================
+        # BS -> RIS
+        #
+        # Shape:
+        #
+        #   (ris, 2, 2)
+        # =================================================
+
+        self.bs_ris_polarization_channel = (
+            self.channel_rng.normal(
+                size=(
+                    self.num_ris,
+                    2,
+                    2,
+                )
+            )
+            + 1j
+            * self.channel_rng.normal(
+                size=(
+                    self.num_ris,
+                    2,
+                    2,
+                )
+            )
+        ) / np.sqrt(2.0)
+
+        self.bs_ris_polarization_channel[
+            :, 0, 0
+        ] *= v_strength
+
+        self.bs_ris_polarization_channel[
+            :, 1, 1
+        ] *= h_strength
+
+        self.bs_ris_polarization_channel[
+            :, 0, 1
+        ] *= xpol
+
+        self.bs_ris_polarization_channel[
+            :, 1, 0
+        ] *= xpol
+
+        # =================================================
+        # RIS -> User
+        #
+        # Shape:
+        #
+        #   (users, ris, 2, 2)
+        # =================================================
+
+        self.ris_user_polarization_channel = (
+            self.channel_rng.normal(
+                size=(
+                    self.num_users,
+                    self.num_ris,
+                    2,
+                    2,
+                )
+            )
+            + 1j
+            * self.channel_rng.normal(
+                size=(
+                    self.num_users,
+                    self.num_ris,
+                    2,
+                    2,
+                )
+            )
+        ) / np.sqrt(2.0)
+
+        self.ris_user_polarization_channel[
+            :, :, 0, 0
+        ] *= v_strength
+
+        self.ris_user_polarization_channel[
+            :, :, 1, 1
+        ] *= h_strength
+
+        self.ris_user_polarization_channel[
+            :, :, 0, 1
+        ] *= xpol
+
+        self.ris_user_polarization_channel[
+            :, :, 1, 0
+        ] *= xpol
+
     # =====================================================
-    # EFFECTIVE CHANNEL
+    # SCALAR EFFECTIVE CHANNEL
     # =====================================================
 
     def _effective_channel(
         self,
         ris_phase: np.ndarray,
     ) -> np.ndarray:
+
+        """
+        Phase-3 scalar effective channel.
+
+        Used only when polarization is disabled.
+        """
 
         phi = np.exp(
             1j * ris_phase
@@ -578,6 +979,203 @@ class IRFEnvironment:
         )
 
         return h_eff
+
+    # =====================================================
+    # POLARIZATION EFFECTIVE CHANNEL
+    # =====================================================
+
+    def _effective_polarization_channel(
+        self,
+        ris_phase: np.ndarray,
+    ) -> np.ndarray:
+
+        """
+        Compute polarization-aware effective channel.
+
+        Returns:
+
+            shape = (num_users, 2, 2)
+
+        Matrix for user u:
+
+            H_u =
+            [ h_VV  h_VH ]
+            [ h_HV  h_HH ]
+
+        where:
+
+            h_VV:
+                V -> V
+
+            h_VH:
+                H -> V
+
+            h_HV:
+                V -> H
+
+            h_HH:
+                H -> H
+        """
+
+        if not self.cfg.polarization_enabled:
+
+            raise RuntimeError(
+                "Polarization is disabled."
+            )
+
+        phi = np.exp(
+            1j * ris_phase
+        )
+
+        # -------------------------------------------------
+        # Direct component
+        # -------------------------------------------------
+
+        h_direct = (
+            self.direct_polarization_channel
+        )
+
+        # -------------------------------------------------
+        # Reflected component
+        # -------------------------------------------------
+
+        reflected = np.zeros(
+            (
+                self.num_users,
+                2,
+                2,
+            ),
+            dtype=np.complex128,
+        )
+
+        # -------------------------------------------------
+        # RIS elements
+        # -------------------------------------------------
+
+        for n in range(self.num_ris):
+
+            # RIS-user matrix:
+            #
+            # (users, rx_pol, ris_pol)
+
+            h_ru = (
+                self.ris_user_polarization_channel[
+                    :,
+                    n,
+                    :,
+                    :
+                ]
+            )
+
+            # BS-RIS matrix:
+            #
+            # (ris_pol, tx_pol)
+
+            h_br = (
+                self.bs_ris_polarization_channel[
+                    n,
+                    :,
+                    :
+                ]
+            )
+
+            # Matrix multiplication:
+            #
+            # H_ru @ H_br
+            #
+            # Result:
+            #
+            # (users, rx_pol, tx_pol)
+
+            reflected += (
+                phi[n]
+                * np.einsum(
+                    "uij,jk->uik",
+                    h_ru,
+                    h_br,
+                )
+            )
+
+        # -------------------------------------------------
+        # Total effective polarization channel
+        # -------------------------------------------------
+
+        h_eff = (
+            h_direct
+            + reflected
+        )
+
+        return h_eff
+
+    # =====================================================
+    # POLARIZATION GAIN
+    # =====================================================
+
+    def _polarization_channel_gain(
+        self,
+        ris_phase: np.ndarray,
+    ) -> np.ndarray:
+
+        """
+        Convert 2x2 polarization channel into
+        scalar received channel gain.
+
+        Phase-4A uses V-polarized transmission.
+
+        Transmit vector:
+
+            [1]
+            [0]
+
+        Therefore:
+
+            received = H_eff @ tx
+
+        and total received power is:
+
+            |V_received|²
+            +
+            |H_received|²
+        """
+
+        h_pol = (
+            self._effective_polarization_channel(
+                ris_phase
+            )
+        )
+
+        # -------------------------------------------------
+        # V-polarized transmit vector
+        # -------------------------------------------------
+
+        tx_vector = np.array(
+            [1.0, 0.0],
+            dtype=np.complex128,
+        )
+
+        # -------------------------------------------------
+        # Received polarization vector
+        # -------------------------------------------------
+
+        received_pol = np.einsum(
+            "uij,j->ui",
+            h_pol,
+            tx_vector,
+        )
+
+        # -------------------------------------------------
+        # Total received gain
+        # -------------------------------------------------
+
+        channel_gain = np.sum(
+            np.abs(received_pol) ** 2,
+            axis=1,
+        )
+
+        return np.maximum(
+            channel_gain,
+            1e-12,
+        )
 
     # =====================================================
     # NOISE
@@ -609,17 +1207,6 @@ class IRFEnvironment:
         self,
         rates: np.ndarray,
     ) -> np.ndarray:
-        """
-        Convert user rate into normalized service quality.
-
-        target = configurable target rate per user.
-
-        Example:
-
-            rate = 10 Mbps
-            target = 10 Mbps
-            quality = 1.0
-        """
 
         target = max(
             self.cfg.trust_target_rate_bps,
@@ -643,31 +1230,10 @@ class IRFEnvironment:
         rates: np.ndarray,
         interference_ratio: float,
     ) -> None:
-        """
-        Update adaptive trust.
 
-        Trust is based on four components:
-
-            service quality
-            interference quality
-            queue quality
-            stability quality
-
-        A neutral point is introduced.
-
-        behavior_score > neutral:
-            positive trust movement
-
-        behavior_score < neutral:
-            negative trust movement
-
-        This prevents the trust state from automatically
-        drifting toward a low behavior-score equilibrium.
-        """
-
-        # -------------------------------------------------
-        # Fixed trust mode
-        # -------------------------------------------------
+        # =================================================
+        # Fixed trust
+        # =================================================
 
         if self.cfg.fixed_trust:
 
@@ -690,9 +1256,9 @@ class IRFEnvironment:
 
             return
 
-        # -------------------------------------------------
+        # =================================================
         # 1. Service quality
-        # -------------------------------------------------
+        # =================================================
 
         service_quality = (
             self._calculate_service_quality(
@@ -700,9 +1266,9 @@ class IRFEnvironment:
             )
         )
 
-        # -------------------------------------------------
+        # =================================================
         # 2. Queue quality
-        # -------------------------------------------------
+        # =================================================
 
         queue_quality = np.clip(
             1.0 - self.queue,
@@ -710,9 +1276,9 @@ class IRFEnvironment:
             1.0,
         )
 
-        # -------------------------------------------------
+        # =================================================
         # 3. Interference quality
-        # -------------------------------------------------
+        # =================================================
 
         interference_quality = np.clip(
             1.0 - interference_ratio,
@@ -720,9 +1286,9 @@ class IRFEnvironment:
             1.0,
         )
 
-        # -------------------------------------------------
+        # =================================================
         # 4. Temporal stability
-        # -------------------------------------------------
+        # =================================================
 
         queue_change = np.abs(
             self.queue
@@ -735,9 +1301,9 @@ class IRFEnvironment:
             1.0,
         )
 
-        # -------------------------------------------------
+        # =================================================
         # Composite behavior score
-        # -------------------------------------------------
+        # =================================================
 
         behavior_score = (
 
@@ -760,58 +1326,55 @@ class IRFEnvironment:
             1.0,
         )
 
-        # -------------------------------------------------
-        # Save behavior score
-        # -------------------------------------------------
-
         self.behavior_score = (
             behavior_score.copy()
         )
 
-        # -------------------------------------------------
-        # Trust movement
-        # -------------------------------------------------
-
-        neutral = float(
-            self.cfg.trust_neutral_point
-        )
+        # =================================================
+        # Trust movement relative to neutral point
+        # =================================================
 
         centered_behavior = (
             behavior_score
-            - neutral
+            - self.cfg.trust_neutral_point
         )
 
-        # -------------------------------------------------
-        # Learning-rate trust movement
-        # -------------------------------------------------
+        # =================================================
+        # Adaptive trust update
+        # =================================================
 
-        raw_delta = (
-            self.cfg.trust_learning_rate
-            * centered_behavior
+        old_trust = (
+            self.trust.copy()
         )
-
-        # -------------------------------------------------
-        # Historical smoothing
-        #
-        # Equivalent to:
-        #
-        # trust_new =
-        #     memory * old
-        #     +
-        #     learning * target
-        #
-        # but centered around current trust.
-        # -------------------------------------------------
-
-        old_trust = self.trust.copy()
 
         self.trust = (
-            old_trust
-            + (
+            self.cfg.trust_memory
+            * self.trust
+            +
+            (
                 1.0
                 - self.cfg.trust_memory
             )
-            * raw_delta
+            * (
+                self.trust
+                + self.cfg.trust_learning_rate
+                * centered_behavior
+            )
+        )
+
+        # -------------------------------------------------
+        # Trust floor
+        # -------------------------------------------------
+
+        self.trust = np.maximum(
+            self.trust,
+            self.cfg.trust_floor,
+        )
+
+        self.trust = np.clip(
+            self.trust,
+            0.0,
+            1.0,
         )
 
         # -------------------------------------------------
@@ -823,41 +1386,131 @@ class IRFEnvironment:
             - old_trust
         )
 
-        # -------------------------------------------------
-        # Numerical safety
-        # -------------------------------------------------
-
-        floor = float(
-            np.clip(
-                self.cfg.trust_floor,
-                0.0,
-                1.0,
-            )
+        self.mean_trust = float(
+            np.mean(self.trust)
         )
 
-        self.trust = np.clip(
-            self.trust,
-            floor,
+    # =====================================================
+    # ACTION PROCESSING
+    # =====================================================
+
+    def _process_action(
+        self,
+        action: np.ndarray,
+    ) -> Tuple[
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+    ]:
+
+        action = np.asarray(
+            action,
+            dtype=np.float64,
+        )
+
+        base_action_dim = (
+            self.num_users * 2
+        )
+
+        if self.cfg.optimize_ris:
+
+            expected_dim = (
+                base_action_dim
+                + self.num_ris
+            )
+
+        else:
+
+            expected_dim = (
+                base_action_dim
+            )
+
+        if action.shape != (
+            expected_dim,
+        ):
+
+            raise ValueError(
+                "Invalid action shape. "
+                f"Expected ({expected_dim},), "
+                f"got {action.shape}."
+            )
+
+        # -------------------------------------------------
+        # Clip action
+        # -------------------------------------------------
+
+        action = np.clip(
+            action,
+            -1.0,
             1.0,
         )
 
         # -------------------------------------------------
-        # Recalculate actual delta after clipping
+        # Bandwidth
         # -------------------------------------------------
 
-        self.trust_delta = (
-            self.trust
-            - old_trust
+        bandwidth_raw = (
+            action[
+                :self.num_users
+            ]
+            + 1.0
+        )
+
+        bandwidth_raw = np.maximum(
+            bandwidth_raw,
+            1e-12,
+        )
+
+        bandwidth = (
+            bandwidth_raw
+            / np.sum(bandwidth_raw)
+            * self.cfg.bandwidth_hz
         )
 
         # -------------------------------------------------
-        # Mean trust
+        # Power
         # -------------------------------------------------
 
-        self.mean_trust = float(
-            np.mean(
-                self.trust
+        power_action = action[
+            self.num_users:
+            self.num_users * 2
+        ]
+
+        power = (
+            power_action
+            + 1.0
+        ) / 2.0
+
+        power *= (
+            self.cfg.max_power_w
+        )
+
+        # -------------------------------------------------
+        # RIS phase
+        # -------------------------------------------------
+
+        if self.cfg.optimize_ris:
+
+            ris_action = action[
+                self.num_users * 2:
+            ]
+
+            ris_phase = (
+                ris_action
+                * np.pi
             )
+
+        else:
+
+            ris_phase = np.zeros(
+                self.num_ris,
+                dtype=np.float64,
+            )
+
+        return (
+            bandwidth,
+            power,
+            ris_phase,
         )
 
     # =====================================================
@@ -867,243 +1520,122 @@ class IRFEnvironment:
     def step(
         self,
         action: np.ndarray,
-    ) -> Tuple[
-        np.ndarray,
-        float,
-        bool,
-        dict,
-    ]:
-        """
-        Execute one environment step.
-        """
+    ):
 
-        action = np.asarray(
-            action,
-            dtype=np.float64,
-        ).reshape(-1)
-
-        # =================================================
-        # Validate action
-        # =================================================
-
-        if action.size != self.action_dim:
-
-            raise ValueError(
-                f"Invalid action dimension. "
-                f"Expected {self.action_dim}, "
-                f"received {action.size}."
-            )
-
-        # =================================================
-        # BANDWIDTH ACTION
-        # =================================================
-
-        bandwidth_raw = action[
-            :self.num_users
-        ]
-
-        bandwidth_weights = (
-            bandwidth_raw + 1.0
+        (
+            bandwidth,
+            power,
+            ris_phase,
+        ) = self._process_action(
+            action
         )
 
-        bandwidth_weights = np.maximum(
-            bandwidth_weights,
-            1e-6,
-        )
+        # -------------------------------------------------
+        # Channel gain
+        # -------------------------------------------------
 
-        bandwidth_sum = float(
-            np.sum(
-                bandwidth_weights
-            )
-        )
+        if self.cfg.polarization_enabled:
 
-        if bandwidth_sum <= 0.0:
-
-            bandwidth_weights = np.ones(
-                self.num_users,
-                dtype=np.float64,
-            )
-
-            bandwidth_sum = float(
-                self.num_users
-            )
-
-        bandwidth_alloc = (
-            bandwidth_weights
-            / bandwidth_sum
-        )
-
-        user_bandwidth = (
-            bandwidth_alloc
-            * self.cfg.bandwidth_hz
-        )
-
-        # =================================================
-        # POWER ACTION
-        # =================================================
-
-        power_raw = action[
-            self.num_users:
-            2 * self.num_users
-        ]
-
-        power_alloc = (
-            np.clip(
-                power_raw,
-                -1.0,
-                1.0,
-            )
-            + 1.0
-        ) / 2.0
-
-        power_alloc *= (
-            self.cfg.max_power_w
-        )
-
-        power_alloc = np.clip(
-            power_alloc,
-            0.0,
-            self.cfg.max_power_w,
-        )
-
-        self.power = (
-            power_alloc.copy()
-        )
-
-        # =================================================
-        # RIS ACTION
-        # =================================================
-
-        if self.cfg.optimize_ris:
-
-            ris_start = (
-                2 * self.num_users
-            )
-
-            ris_end = (
-                ris_start
-                + self.num_ris
-            )
-
-            ris_raw = action[
-                ris_start:ris_end
-            ]
-
-            ris_phase = (
-                np.clip(
-                    ris_raw,
-                    -1.0,
-                    1.0,
+            channel_gain = (
+                self._polarization_channel_gain(
+                    ris_phase
                 )
-                * np.pi
             )
 
         else:
 
-            # Fixed RIS configuration.
-            ris_phase = np.zeros(
-                self.num_ris,
-                dtype=np.float64,
+            h_eff = (
+                self._effective_channel(
+                    ris_phase
+                )
             )
 
-        # =================================================
-        # CHANNEL
-        # =================================================
-
-        h_eff = self._effective_channel(
-            ris_phase
-        )
-
-        channel_gain = (
-            np.abs(h_eff) ** 2
-        )
+            channel_gain = (
+                np.abs(h_eff) ** 2
+            )
 
         channel_gain = np.maximum(
             channel_gain,
             1e-12,
         )
 
-        # =================================================
-        # RECEIVED POWER
-        # =================================================
+        # -------------------------------------------------
+        # Received power
+        # -------------------------------------------------
 
         received_power = (
-            power_alloc
+            power
             * channel_gain
         )
 
-        received_power = np.maximum(
-            received_power,
-            0.0,
+        # -------------------------------------------------
+        # Interference
+        # -------------------------------------------------
+
+        total_received_power = (
+            np.sum(received_power)
         )
 
-        # =================================================
-        # INTERFERENCE
-        # =================================================
-
-        total_received_power = float(
-            np.sum(
-                received_power
-            )
-        )
-
-        self.interference = np.maximum(
+        interference = (
             total_received_power
-            - received_power,
+            - received_power
+        )
+
+        interference = np.maximum(
+            interference,
             0.0,
         )
 
-        # =================================================
+        # -------------------------------------------------
         # SINR
-        # =================================================
+        # -------------------------------------------------
 
         denominator = (
-            self.interference
+            interference
             + self.noise_power_w
-            + 1e-12
         )
 
         self.sinr = (
             received_power
-            / denominator
+            / np.maximum(
+                denominator,
+                1e-15,
+            )
         )
 
-        self.sinr = np.nan_to_num(
+        self.sinr = np.maximum(
             self.sinr,
-            nan=0.0,
-            posinf=1e6,
-            neginf=0.0,
+            0.0,
         )
 
-        # =================================================
-        # RATE
-        # =================================================
+        # -------------------------------------------------
+        # Rates
+        # -------------------------------------------------
 
         rates = (
-            user_bandwidth
+            bandwidth
             * np.log2(
-                1.0 + self.sinr
+                1.0
+                + self.sinr
             )
         )
 
-        rates = np.nan_to_num(
+        rates = np.maximum(
             rates,
-            nan=0.0,
-            posinf=1e12,
-            neginf=0.0,
+            0.0,
         )
 
-        total_rate = float(
-            np.sum(
-                rates
-            )
+        self.rates = rates.copy()
+
+        # -------------------------------------------------
+        # Spectral efficiency
+        # -------------------------------------------------
+
+        total_rate = (
+            np.sum(rates)
         )
 
-        # =================================================
-        # SPECTRAL EFFICIENCY
-        # =================================================
-
-        spectral_efficiency = (
+        self.spectral_efficiency = (
             total_rate
             / max(
                 self.cfg.bandwidth_hz,
@@ -1111,24 +1643,16 @@ class IRFEnvironment:
             )
         )
 
-        # =================================================
-        # TOTAL POWER
-        # =================================================
+        # -------------------------------------------------
+        # Energy efficiency
+        # -------------------------------------------------
 
         total_power = (
-            float(
-                np.sum(
-                    power_alloc
-                )
-            )
+            np.sum(power)
             + self.cfg.circuit_power_w
         )
 
-        # =================================================
-        # ENERGY EFFICIENCY
-        # =================================================
-
-        energy_efficiency = (
+        self.energy_efficiency = (
             total_rate
             / max(
                 total_power,
@@ -1136,42 +1660,175 @@ class IRFEnvironment:
             )
         )
 
-        # =================================================
-        # INTERFERENCE RATIO
-        # =================================================
+        # -------------------------------------------------
+        # Interference ratio
+        # -------------------------------------------------
 
-        signal_reference = (
-            float(
-                np.mean(
-                    received_power
-                )
+        interference_total = (
+            np.sum(interference)
+        )
+
+        received_total = (
+            np.sum(received_power)
+        )
+
+        self.interference_ratio = (
+            interference_total
+            / max(
+                received_total,
+                1e-12,
             )
-            + 1e-12
         )
 
-        interference_reference = (
-            float(
-                np.mean(
-                    self.interference
-                )
-            )
-        )
-
-        interference_ratio = (
-            interference_reference
-            / signal_reference
-        )
-
-        interference_ratio = float(
+        self.interference_ratio = float(
             np.clip(
-                interference_ratio,
+                self.interference_ratio,
                 0.0,
                 1.0,
             )
         )
 
         # =================================================
-        # SAVE PREVIOUS VARIABLES
+        # Queue dynamics
+        #
+        # IMPORTANT:
+        #
+        # Queue arrivals use dynamics_rng only.
+        #
+        # This ensures polarization channel generation
+        # cannot alter the stochastic traffic sequence.
+        # =================================================
+
+        arrivals = self.dynamics_rng.uniform(
+            0.0,
+            0.05,
+            size=self.num_users,
+        )
+
+        self.last_arrivals = (
+            arrivals.copy()
+        )
+
+        normalized_service = (
+            rates
+            / max(
+                self.cfg.trust_target_rate_bps,
+                1e-12,
+            )
+        )
+
+        service_fraction = np.clip(
+            normalized_service,
+            0.0,
+            1.0,
+        )
+
+        service = (
+            0.05
+            * service_fraction
+        )
+
+        self.queue = (
+            self.queue
+            + arrivals
+            - service
+        )
+
+        self.queue = np.clip(
+            self.queue,
+            0.0,
+            1.0,
+        )
+
+        # =================================================
+        # Trust update
+        # =================================================
+
+        self._update_trust(
+            rates,
+            self.interference_ratio,
+        )
+
+        # =================================================
+        # Reward normalization
+        # =================================================
+
+        normalized_se = np.clip(
+            self.spectral_efficiency
+            / max(
+                self.cfg.se_target,
+                1e-12,
+            ),
+            0.0,
+            1.0,
+        )
+
+        normalized_ee = np.clip(
+            self.energy_efficiency
+            / max(
+                self.cfg.ee_target,
+                1e-12,
+            ),
+            0.0,
+            1.0,
+        )
+
+        normalized_interference = (
+            self.interference_ratio
+        )
+
+        normalized_power = (
+            np.mean(power)
+            / max(
+                self.cfg.max_power_w,
+                1e-12,
+            )
+        )
+
+        normalized_queue = (
+            np.mean(self.queue)
+        )
+
+        normalized_trust_delta = float(
+            np.mean(
+                self.trust_delta
+            )
+        )
+
+        # =================================================
+        # Reward
+        # =================================================
+
+        reward = (
+
+            self.cfg.se_weight
+            * normalized_se
+
+            + self.cfg.ee_weight
+            * normalized_ee
+
+            + self.cfg.trust_weight
+            * self.mean_trust
+
+            + self.cfg.trust_delta_weight
+            * normalized_trust_delta
+
+            - self.cfg.interference_penalty
+            * normalized_interference
+
+            - self.cfg.power_penalty
+            * normalized_power
+
+            - self.cfg.queue_penalty
+            * normalized_queue
+        )
+
+        reward = float(
+            reward
+        )
+
+        # =================================================
+        # Previous variables
         # =================================================
 
         self.previous_queue = (
@@ -1191,182 +1848,19 @@ class IRFEnvironment:
         )
 
         # =================================================
-        # QUEUE DYNAMICS
+        # Diagnostics
         # =================================================
 
-        arrivals = self.rng.uniform(
-            0.0,
-            0.005,
-            size=self.num_users,
+        self.mean_queue = float(
+            np.mean(self.queue)
         )
 
-        service = np.clip(
-            rates / 1e8,
-            0.0,
-            0.05,
-        )
-
-        self.queue = np.clip(
-            self.queue
-            + arrivals
-            - service,
-            0.0,
-            1.0,
+        self.mean_power = float(
+            np.mean(power)
         )
 
         # =================================================
-        # ADAPTIVE TRUST
-        # =================================================
-
-        self._update_trust(
-            rates=rates,
-            interference_ratio=interference_ratio,
-        )
-
-        # =================================================
-        # METRICS
-        # =================================================
-
-        mean_trust = float(
-            np.mean(
-                self.trust
-            )
-        )
-
-        mean_trust_delta = float(
-            np.mean(
-                self.trust_delta
-            )
-        )
-
-        mean_behavior_score = float(
-            np.mean(
-                self.behavior_score
-            )
-        )
-
-        # =================================================
-        # REWARD NORMALIZATION
-        # =================================================
-
-        # -------------------------------------------------
-        # Spectral efficiency
-        # -------------------------------------------------
-
-        se_norm = np.clip(
-            spectral_efficiency
-            / max(
-                self.cfg.se_target,
-                1e-12,
-            ),
-            0.0,
-            1.0,
-        )
-
-        # -------------------------------------------------
-        # Energy efficiency
-        # -------------------------------------------------
-
-        ee_norm = np.clip(
-            energy_efficiency
-            / max(
-                self.cfg.ee_target,
-                1e-12,
-            ),
-            0.0,
-            1.0,
-        )
-
-        # -------------------------------------------------
-        # Power
-        # -------------------------------------------------
-
-        power_norm = np.clip(
-            float(
-                np.mean(
-                    power_alloc
-                )
-            )
-            / max(
-                self.cfg.max_power_w,
-                1e-12,
-            ),
-            0.0,
-            1.0,
-        )
-
-        # -------------------------------------------------
-        # Queue
-        # -------------------------------------------------
-
-        queue_norm = np.clip(
-            float(
-                np.mean(
-                    self.queue
-                )
-            ),
-            0.0,
-            1.0,
-        )
-
-        # =================================================
-        # TRUST-AWARE REWARD
-        # =================================================
-
-        reward = (
-
-            # Communication performance
-            self.cfg.se_weight
-            * se_norm
-
-            # Energy performance
-            + self.cfg.ee_weight
-            * ee_norm
-
-            # Absolute trust
-            + self.cfg.trust_weight
-            * mean_trust
-
-            # Trust improvement
-            + self.cfg.trust_delta_weight
-            * mean_trust_delta
-
-            # Interference penalty
-            - self.cfg.interference_penalty
-            * interference_ratio
-
-            # Power penalty
-            - self.cfg.power_penalty
-            * power_norm
-
-            # Queue penalty
-            - self.cfg.queue_penalty
-            * queue_norm
-        )
-
-        # =================================================
-        # Numerical safety
-        # =================================================
-
-        reward = float(
-            np.nan_to_num(
-                reward,
-                nan=0.0,
-                posinf=1.0,
-                neginf=-1.0,
-            )
-        )
-
-        reward = float(
-            np.clip(
-                reward,
-                -1.0,
-                1.0,
-            )
-        )
-
-        # =================================================
-        # STEP COUNTER
+        # Step count
         # =================================================
 
         self.step_count += 1
@@ -1376,143 +1870,105 @@ class IRFEnvironment:
             >= self.cfg.max_steps
         )
 
-        # =================================================
-        # STATE
-        # =================================================
-
-        state = self._get_state()
+        truncated = False
 
         # =================================================
-        # INFO
+        # Next state
+        # =================================================
+
+        next_state = (
+            self._get_state()
+        )
+
+        # =================================================
+        # Info
         # =================================================
 
         info = {
 
-            # -------------------------------------------------
-            # Communication
-            # -------------------------------------------------
-
             "spectral_efficiency":
                 float(
-                    spectral_efficiency
+                    self.spectral_efficiency
                 ),
 
             "energy_efficiency":
                 float(
-                    energy_efficiency
+                    self.energy_efficiency
                 ),
 
-            "total_rate":
+            "rate":
                 float(
                     total_rate
                 ),
 
-            "mean_sinr":
+            "sinr":
+                float(
+                    np.mean(self.sinr)
+                ),
+
+            "trust":
+                float(
+                    self.mean_trust
+                ),
+
+            "behavior_score":
                 float(
                     np.mean(
-                        self.sinr
-                    )
-                ),
-
-            # -------------------------------------------------
-            # Trust
-            # -------------------------------------------------
-
-            "mean_trust":
-                float(
-                    mean_trust
-                ),
-
-            "min_trust":
-                float(
-                    np.min(
-                        self.trust
-                    )
-                ),
-
-            "max_trust":
-                float(
-                    np.max(
-                        self.trust
+                        self.behavior_score
                     )
                 ),
 
             "trust_delta":
                 float(
-                    mean_trust_delta
-                ),
-
-            "mean_behavior_score":
-                float(
-                    mean_behavior_score
-                ),
-
-            # -------------------------------------------------
-            # Resource
-            # -------------------------------------------------
-
-            "mean_power":
-                float(
                     np.mean(
-                        power_alloc
+                        self.trust_delta
                     )
                 ),
 
-            "total_power":
+            "queue":
                 float(
-                    total_power
+                    self.mean_queue
+                ),
+
+            "power":
+                float(
+                    self.mean_power
+                ),
+
+            "interference":
+                float(
+                    self.interference_ratio
+                ),
+
+            "polarization_enabled":
+                bool(
+                    self.cfg.polarization_enabled
                 ),
 
             # -------------------------------------------------
-            # Queue / interference
+            # Research diagnostics
             # -------------------------------------------------
 
-            "mean_queue":
+            "arrival_mean":
                 float(
                     np.mean(
-                        self.queue
+                        self.last_arrivals
                     )
                 ),
 
-            "interference_ratio":
+            "arrival_sum":
                 float(
-                    interference_ratio
-                ),
-
-            # -------------------------------------------------
-            # Reward
-            # -------------------------------------------------
-
-            "se_normalized":
-                float(
-                    se_norm
-                ),
-
-            "ee_normalized":
-                float(
-                    ee_norm
-                ),
-
-            "queue_normalized":
-                float(
-                    queue_norm
-                ),
-
-            "power_normalized":
-                float(
-                    power_norm
-                ),
-
-            "reward":
-                float(
-                    reward
+                    np.sum(
+                        self.last_arrivals
+                    )
                 ),
         }
 
         return (
-            state,
+            next_state,
             reward,
             terminated,
+            truncated,
             info,
         )
 
@@ -1523,41 +1979,39 @@ class IRFEnvironment:
     def _get_state(
         self,
     ) -> np.ndarray:
-        """
-        Construct normalized state vector.
-        """
 
         # -------------------------------------------------
-        # SINR
+        # Normalize SINR
         # -------------------------------------------------
 
-        sinr_state = np.tanh(
-            np.log1p(
-                np.maximum(
-                    self.sinr,
-                    0.0,
-                )
-            )
+        sinr_normalized = np.clip(
+            self.sinr
+            / 10.0,
+            0.0,
+            1.0,
         )
 
         # -------------------------------------------------
-        # Interference
+        # Normalize interference
         # -------------------------------------------------
 
-        interference_state = np.tanh(
-            np.log1p(
-                np.maximum(
-                    self.interference,
-                    0.0,
-                )
-            )
+        interference_normalized = np.clip(
+            self.interference
+            / max(
+                np.max(
+                    self.interference
+                ),
+                1e-12,
+            ),
+            0.0,
+            1.0,
         )
 
         # -------------------------------------------------
         # Queue
         # -------------------------------------------------
 
-        queue_state = np.clip(
+        queue_normalized = np.clip(
             self.queue,
             0.0,
             1.0,
@@ -1567,7 +2021,7 @@ class IRFEnvironment:
         # Power
         # -------------------------------------------------
 
-        power_state = np.clip(
+        power_normalized = np.clip(
             self.power
             / max(
                 self.cfg.max_power_w,
@@ -1581,35 +2035,24 @@ class IRFEnvironment:
         # Trust
         # -------------------------------------------------
 
-        trust_state = np.clip(
+        trust_normalized = np.clip(
             self.trust,
             0.0,
             1.0,
         )
 
         # -------------------------------------------------
-        # State vector
+        # Concatenate
         # -------------------------------------------------
 
         state = np.concatenate(
             [
-                sinr_state,
-                interference_state,
-                queue_state,
-                power_state,
-                trust_state,
+                sinr_normalized,
+                interference_normalized,
+                queue_normalized,
+                power_normalized,
+                trust_normalized,
             ]
-        )
-
-        # -------------------------------------------------
-        # Numerical safety
-        # -------------------------------------------------
-
-        state = np.nan_to_num(
-            state,
-            nan=0.0,
-            posinf=1.0,
-            neginf=-1.0,
         )
 
         return state.astype(
@@ -1617,39 +2060,33 @@ class IRFEnvironment:
         )
 
     # =====================================================
-    # STATE DIMENSION
+    # DIMENSIONS
     # =====================================================
 
     @property
-    def state_dim(
-        self,
-    ) -> int:
+    def state_dim(self) -> int:
 
         return (
-            self.num_users
-            * 5
+            self.num_users * 5
         )
 
-    # =====================================================
-    # ACTION DIMENSION
-    # =====================================================
-
     @property
-    def action_dim(
-        self,
-    ) -> int:
+    def action_dim(self) -> int:
 
-        base_action_dim = (
-            self.num_users
-            * 2
+        base_dim = (
+            self.num_users * 2
         )
 
         if self.cfg.optimize_ris:
 
             return (
-                base_action_dim
+                base_dim
                 + self.num_ris
             )
 
-        return base_action_dim
+        return base_dim
 
+
+# =========================================================
+# END OF FILE
+# =========================================================

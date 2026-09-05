@@ -1,0 +1,102 @@
+TA-FDRL-IRF | Phase-4A Polarization Benchmark
+======================================================================
+Seed: 2026
+Steps requested: 200
+
+COMMON CONFIGURATION
+----------------------------------------------------------------------
+Users: 20
+RIS elements: 64
+Carrier frequency: 28 GHz
+Bandwidth: 100 MHz
+Maximum transmit power: 1.0 W
+Circuit power: 0.1 W
+Noise figure: 7 dB
+Noise density: -174 dBm/Hz
+RIS optimization: False
+Adaptive trust: True
+State dimension target: 100
+Action dimension target: 40
+SAC architecture: Unchanged
+
+POLARIZATION OFF
+----------------------------------------------------------------------
+Polarization enabled: False
+Steps: 200
+State dimension: 100
+Action dimension: 40
+Total reward: 58.069850
+Mean reward: 0.290349
+Mean spectral efficiency: 0.07817515
+Mean energy efficiency: 786164.362516
+Initial trust: 0.857310
+Mean trust: 0.601783
+Final trust: 0.318840
+Trust change: -0.538470
+Mean queue: 0.928144
+Final queue: 0.999207
+
+POLARIZATION ON
+----------------------------------------------------------------------
+Polarization enabled: True
+Steps: 200
+State dimension: 100
+Action dimension: 40
+Total reward: 56.241303
+Mean reward: 0.281207
+Mean spectral efficiency: 0.07567136
+Mean energy efficiency: 761304.640357
+Initial trust: 0.857310
+Mean trust: 0.600848
+Final trust: 0.317389
+Trust change: -0.539921
+Mean queue: 0.929397
+Final queue: 0.999705
+
+POLARIZATION IMPACT
+----------------------------------------------------------------------
+Reward change: -3.1489%
+Mean reward change: -3.1489%
+SE change: -3.2028%
+EE change: -3.1622%
+Trust-change difference: -0.001451
+Final trust difference: -0.001451
+Mean queue change: +0.1349%
+Final queue change: +0.0499%
+
+METHODOLOGY
+----------------------------------------------------------------------
+Same environment reset seed: 2026.
+Same externally generated action sequence.
+Action sequence length: 200.
+RIS optimization disabled.
+Adaptive trust enabled.
+SAC training not performed.
+SAC architecture unchanged.
+Polarization switch is the experimental PHY variable.
+Benchmark type: controlled preliminary PHY comparison.
+
+FAIRNESS NOTE
+----------------------------------------------------------------------
+The same externally generated action sequence is used
+for both Polarization OFF and Polarization ON.
+Both environments are reset using the same seed.
+However, if the environment uses a shared internal RNG
+stream, different channel-generation dimensions can
+consume different random samples.
+Therefore this benchmark is a controlled preliminary
+comparison rather than the final research-grade ablation.
+A separate channel RNG and dynamics RNG should be used
+for the final publication-quality experiment.
+
+PHASE-4A STATUS
+----------------------------------------------------------------------
+Polarization PHY: ENABLED
+State dimension: 100
+Action dimension: 40
+RIS optimization: DISABLED
+Adaptive trust: ENABLED
+SAC architecture: UNCHANGED
+SAC training: NOT PERFORMED
+Environment validation: PASSED
+Controlled PHY benchmark: COMPLETED
