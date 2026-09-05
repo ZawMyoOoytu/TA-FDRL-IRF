@@ -1,0 +1,23 @@
+TA-FDRL-IRF Phase-2 SAC Benchmark
+=================================
+
+State dimension: 100
+Action dimension: 40
+RIS optimization: False
+Fixed trust: True
+
+Random baseline
+Episode reward: 86.2786519696543
+Per-step reward: 0.43139325984827154
+SE: 0.0742271346224423
+EE: 710392.7832543744
+Queue: 0.2278874857840843
+
+Final SAC
+Episode reward: 88.6659981901499
+Per-step reward: 0.4433299909507493
+SE: 0.0920276725941809
+EE: 852672.050424245
+Queue: 0.29725762205960315
+
+Improvement over random (%): 2.7670184524153525

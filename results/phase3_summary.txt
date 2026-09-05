@@ -1,0 +1,72 @@
+TA-FDRL-IRF Phase-3 SAC Benchmark
+====================================
+
+Configuration
+-------------
+Seed: 42
+State dimension: 100
+Action dimension: 40
+Number of users: 20
+RIS elements: 64
+RIS optimization: False
+Fixed trust: False
+Trust memory: 0.9
+Trust learning rate: 0.1
+Trust target rate (bps): 10000000.0
+Trust neutral point: 0.5
+Trust floor: 0.0
+SE target: 0.2
+EE target: 1000000.0
+Training episodes: 300
+Steps per episode: 200
+Evaluation interval: 10
+Evaluation episodes: 5
+Final evaluation episodes: 10
+
+Random baseline
+---------------
+Episode reward: 72.16153044906491
+Per-step reward: 0.36080765224532463
+SE: 0.0742271346224423
+EE: 710392.7832543744
+Initial trust: 0.8490003913247317
+Final trust: 0.6813623840765718
+Trust change: -0.16763800724815994
+Trust delta: -0.0009428115633501168
+Behavior score: 0.4057188436649885
+Queue: 0.22786771291307364
+Power: 0.5227686788899518
+Interference: 1.0
+
+Final SAC
+---------
+Episode reward: 74.09282729458468
+Per-step reward: 0.3704641364729233
+SE: 0.07687604700954928
+EE: 813253.4970251636
+Initial trust: 0.8551216487765624
+Final trust: 0.6651350535650596
+Trust change: -0.18998659521150268
+Trust delta: -0.0011425445508163675
+Behavior score: 0.3857455449183631
+Minimum trust: 0.45111929476066337
+Maximum trust: 0.9057227338817713
+Queue: 0.3094033536440424
+Power: 0.4701955093024298
+Interference: 1.0
+
+Comparison
+----------
+SAC improvement over random (%): 2.676352390950104
+
+Training statistics
+-------------------
+First-10 average reward: 74.4158712605558
+Last-10 average reward: 79.60032226570137
+Best-10 average reward: 83.67095639620024
+Best evaluation per-step reward: 0.5035713418913865
+Best evaluation episode: 20
+
+Model
+-----
+Best model path: results\best_sac_irf_phase3_adaptive_trust\sac_phase3_adaptive_trust.pt
