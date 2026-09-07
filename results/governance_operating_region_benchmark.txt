@@ -1,0 +1,133 @@
+==============================================================================
+TA-FDRL-IRF H5-B GOVERNANCE OPERATING-REGION BENCHMARK
+==============================================================================
+
+BENCHMARK CONFIGURATION
+------------------------------------------------------------------------------
+Project root: C:\Users\heart\TA-FDRL-IRF
+Checkpoint: C:\Users\heart\TA-FDRL-IRF\results\best_sac_irf_phase2.pt
+Seeds: [11, 22, 33, 44, 55]
+Max steps: 200
+State dimension: 100
+Action dimension: 40
+Users: 20
+
+SCENARIO RESULTS
+------------------------------------------------------------------------------
+
+SAFE_ALLOW
+Expected status: ALLOW
+Runs: 5
+Mean total reward: 55.979119
+Mean reward/step: 0.279896
+Mean trust: 0.900000
+Mean risk: 0.065000
+ALLOW rate: 100.00%
+CONSTRAIN rate: 0.00%
+BLOCK rate: 0.00%
+Modification rate: 0.00%
+Mean action delta: 0.000000
+Maximum action delta: 0.000000
+Branch mismatches: 0
+Branch accuracy: 100.00%
+Reason counts:
+  GOVERNANCE_APPROVED: 1000
+
+MEDIUM_RISK_CONSTRAIN
+Expected status: CONSTRAIN
+Runs: 5
+Mean total reward: 40.884713
+Mean reward/step: 0.204424
+Mean trust: 0.600000
+Mean risk: 0.601667
+ALLOW rate: 0.00%
+CONSTRAIN rate: 100.00%
+BLOCK rate: 0.00%
+Modification rate: 100.00%
+Mean action delta: 0.140000
+Maximum action delta: 0.140000
+Branch mismatches: 0
+Branch accuracy: 100.00%
+Reason counts:
+  MEDIUM_RISK_SAFE_ENVELOPE: 1000
+
+HIGH_RISK_BLOCK
+Expected status: BLOCK
+Runs: 5
+Mean total reward: 39.190188
+Mean reward/step: 0.195951
+Mean trust: 0.150000
+Mean risk: 0.804167
+ALLOW rate: 0.00%
+CONSTRAIN rate: 0.00%
+BLOCK rate: 100.00%
+Modification rate: 0.00%
+Mean action delta: 0.000000
+Maximum action delta: 0.000000
+Branch mismatches: 0
+Branch accuracy: 100.00%
+Reason counts:
+  HIGH_RISK: 1000
+
+LOW_TRUST_BLOCK
+Expected status: BLOCK
+Runs: 5
+Mean total reward: 55.979119
+Mean reward/step: 0.279896
+Mean trust: 0.300000
+Mean risk: 0.335000
+ALLOW rate: 0.00%
+CONSTRAIN rate: 0.00%
+BLOCK rate: 100.00%
+Modification rate: 0.00%
+Mean action delta: 0.000000
+Maximum action delta: 0.000000
+Branch mismatches: 0
+Branch accuracy: 100.00%
+Reason counts:
+  TRUST_BELOW_MINIMUM: 1000
+
+POLICY_VIOLATION_BLOCK
+Expected status: BLOCK
+Runs: 5
+Mean total reward: 38.519700
+Mean reward/step: 0.192598
+Mean trust: 0.900000
+Mean risk: 0.210833
+ALLOW rate: 0.00%
+CONSTRAIN rate: 0.00%
+BLOCK rate: 100.00%
+Modification rate: 0.00%
+Mean action delta: 0.000000
+Maximum action delta: 0.000000
+Branch mismatches: 0
+Branch accuracy: 100.00%
+Reason counts:
+  POLICY_VIOLATION: 1000
+
+OVERALL GOVERNANCE VALIDATION
+------------------------------------------------------------------------------
+Total runs: 25
+Total steps: 5000
+Branch mismatches: 0
+Branch accuracy: 100.00%
+Total action modifications: 1000
+Overall modification rate: 20.00%
+
+SCIENTIFIC INTERPRETATION
+------------------------------------------------------------------------------
+H5-B evaluates governance execution behavior across controlled operating regions without modifying the existing SAC or IRF scientific core.
+
+SAFE_ALLOW evaluates direct execution when trust and risk conditions are acceptable.
+
+MEDIUM_RISK_CONSTRAIN evaluates the Safe Envelope intervention under a controlled medium-risk condition. Action modification is explicitly measured.
+
+HIGH_RISK_BLOCK evaluates high-risk enforcement and verifies that unsafe actions are blocked.
+
+LOW_TRUST_BLOCK evaluates the explicit minimum-trust governance gate.
+
+POLICY_VIOLATION_BLOCK evaluates policy precedence independently of high trust.
+
+The controlled conditions are intended to establish execution-level governance behavior. They are not physical-world 6G measurements.
+
+The benchmark intentionally preserves the existing SAC checkpoint, SAC architecture, IRF environment, reward function, and Phase-4A scientific results.

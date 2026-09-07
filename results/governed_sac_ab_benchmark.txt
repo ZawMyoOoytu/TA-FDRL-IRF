@@ -1,0 +1,70 @@
+==============================================================================
+TA-FDRL-IRF GOVERNED SAC A/B BENCHMARK
+==============================================================================
+
+CONTROLLED COMPARISON
+Baseline: SAC -> IRF
+Governed: SAC -> Policy -> Risk -> Safe Envelope -> IRF
+
+Seeds: [11, 22, 33, 44, 55]
+Episodes per seed: 5
+Total episodes per condition: 25
+Max steps: 200
+State dimension: 100
+Action dimension: 40
+
+BASELINE SUMMARY
+------------------------------------------------------------------------------
+Mean total reward: 80.297672
+Mean reward/step: 0.401488
+Mean trust: 0.403187
+Mean episode minimum trust: 0.314785
+Mean spectral efficiency: 0.110556
+Mean energy efficiency: 1140331.923061
+
+GOVERNED SUMMARY
+------------------------------------------------------------------------------
+Mean total reward: 55.844419
+Mean reward/step: 0.279222
+Mean trust: 0.405458
+Mean episode minimum trust: 0.315192
+Mean risk: 0.482218
+Mean episode maximum risk: 0.496755
+ALLOW count: 0
+CONSTRAIN count: 0
+BLOCK count: 5000
+ALLOW rate: 0.0000%
+CONSTRAIN rate: 0.0000%
+BLOCK rate: 100.0000%
+Action modification count: 0
+Action modification rate: 0.0000%
+Mean action delta: 0.673285
+Mean maximum action delta: 0.700604
+Mean spectral efficiency: 0.075745
+Mean energy efficiency: 749952.207657
+
+A/B PERFORMANCE COMPARISON
+------------------------------------------------------------------------------
+Baseline mean reward: 80.297672
+Governed mean reward: 55.844419
+Reward change: -30.4533%
+
+SCIENTIFIC INTERPRETATION
+------------------------------------------------------------------------------
+This benchmark compares the existing Phase-2 SAC controller against the same controller wrapped by the governance layer.
+
+Both conditions use the same SAC checkpoint, matched episode seeds, identical state and action dimensions, and the same maximum episode length.
+
+The baseline executes SAC actions directly in the IRF environment.
+
+The governed condition evaluates each proposed action through policy enforcement, risk assessment, and the medium-risk Safe Envelope before execution.
+
+High-risk or policy-violating actions are blocked and replaced by an explicit zero-action fallback. Medium-risk actions may be constrained by the Safe Envelope.
+
+The benchmark does not retrain the SAC agent and does not modify the original IRF reward function.
+
+Any observed reward difference therefore represents the measured performance effect of governance intervention under the tested conditions.
+
+A performance reduction is not automatically a failure: governance may trade some control performance for safety, trust compliance, or risk reduction.
+
+This benchmark is an engineering evaluation of the integrated control loop and must not be interpreted as evidence of universal optimality or real-world 6G deployment performance.

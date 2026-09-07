@@ -1,0 +1,89 @@
+
+
+======================================================================
+TRUST-RISK STATISTICAL ANALYSIS
+======================================================================
+Samples:                 1000
+
+TRUST
+----------------------------------------------------------------------
+Mean trust:              0.402912
+Median trust:            0.404177
+Minimum mean-trust:      0.312189
+Maximum mean-trust:      0.455303
+Mean P10 trust:          0.000000
+Mean minimum trust:      0.000000
+
+RISK
+----------------------------------------------------------------------
+Mean risk score:         0.479391
+Minimum risk score:      0.410354
+Maximum risk score:      0.494117
+Mean action anomaly:     0.367373
+
+REWARD
+----------------------------------------------------------------------
+Mean reward/step:        0.402488
+Total reward:            402.488116
+
+
+======================================================================
+CORRELATION ANALYSIS
+======================================================================
+Trust vs Risk:           +0.525492
+Trust vs Reward:         +0.268256
+Trust vs Action Anomaly: +0.750383
+Trust vs Queue:          +0.945303
+Trust vs Interference:   +0.993938
+Risk vs Reward:          -0.650550
+
+
+======================================================================
+TRUST REGION ANALYSIS
+======================================================================
+VERY_LOW   | Samples:     0 | No observations
+LOW        | Samples:   460 | Trust: 0.3730 | Risk: 0.4710 | Anomaly: 0.3208 | Reward: 0.3848
+MEDIUM     | Samples:   540 | Trust: 0.4284 | Risk: 0.4865 | Anomaly: 0.4071 | Reward: 0.4176
+GOOD       | Samples:     0 | No observations
+HIGH       | Samples:     0 | No observations
+
+
+======================================================================
+RISK LEVEL DISTRIBUTION
+======================================================================
+LOW:                     1000 (100.00%)
+MEDIUM:                     0 (0.00%)
+HIGH:                       0 (0.00%)
+
+
+======================================================================
+TRUST THRESHOLD EXPOSURE
+======================================================================
+Threshold 0.30 | Below:   0.00% | Above: 100.00%
+Threshold 0.35 | Below:   5.00% | Above:  95.00%
+Threshold 0.40 | Below:  46.00% | Above:  54.00%
+Threshold 0.45 | Below:  93.50% | Above:   6.50%
+Threshold 0.50 | Below: 100.00% | Above:   0.00%
+Threshold 0.55 | Below: 100.00% | Above:   0.00%
+Threshold 0.60 | Below: 100.00% | Above:   0.00%
+Threshold 0.65 | Below: 100.00% | Above:   0.00%
+Threshold 0.70 | Below: 100.00% | Above:   0.00%
+
+
+======================================================================
+EPISODE SUMMARY
+======================================================================
+Episode 1: trust=0.402912, risk=0.479391, anomaly=0.367373, reward=80.497623
+Episode 2: trust=0.402912, risk=0.479391, anomaly=0.367373, reward=80.497623
+Episode 3: trust=0.402912, risk=0.479391, anomaly=0.367373, reward=80.497623
+Episode 4: trust=0.402912, risk=0.479391, anomaly=0.367373, reward=80.497623
+Episode 5: trust=0.402912, risk=0.479391, anomaly=0.367373, reward=80.497623
+
+
+======================================================================
+SCIENTIFIC INTERPRETATION
+======================================================================
+The experiment measures the empirical relationship between environment-level trust, SAC actions, risk assessment, and reward.
+The governance trust threshold is NOT changed by this experiment.
+Threshold selection should be based on observed trust-risk behavior rather than convenience.
+The existing SAC scientific benchmark remains unchanged.
