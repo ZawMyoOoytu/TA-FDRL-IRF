@@ -1,15 +1,70 @@
 
+"""
+TA-FDRL-IRF
+Governance Branch Coverage Test
+
+Purpose
+-------
+Validate GovernanceEngine decision branches independently from the
+numerical reachability of the real RiskEngine thresholds.
+
+Branches under test
+-------------------
+    1. NORMAL_ALLOW
+    2. LOW_TRUST_BLOCK
+    3. POLICY_VIOLATION_BLOCK
+    4. MEDIUM_RISK_CONSTRAIN
+    5. HIGH_RISK_BLOCK
+    6. COMBINED_STRESS_BLOCK
+
+Architectural distinction
+-------------------------
+This test isolates GovernanceEngine decision logic.
+
+The real PolicyEngine, RiskEngine, and SafeEnvelope are replaced with
+deterministic test doubles through the ACTUAL dependency attributes
+used by GovernanceEngine:
+
+    governance.policy
+    governance.risk
+    governance.safe_envelope
+
+The real GovernanceEngine.evaluate() implementation remains active.
+
+Governance precedence
+---------------------
+    1. POLICY VIOLATION -> BLOCK
+    2. HIGH RISK        -> BLOCK
+    3. LOW GOV TRUST    -> BLOCK
+    4. MEDIUM RISK      -> CONSTRAIN
+    5. OTHERWISE        -> ALLOW
+
+Important
+---------
+This test does NOT modify:
+
+    - trust/policy.py
+    - trust/risk.py
+    - trust/governance.py
+    - RiskConfig thresholds
+    - TrustEngine equations
+    - IRF environment dynamics
+    - SAC agent behavior
+
+The purpose is to prove that GovernanceEngine decision branches
+are reachable and correctly ordered.
+
+RiskEngine numerical calibration/reachability must be tested separately.
+"""
+
 from __future__ import annotations
+
+# ============================================================================
+# PROJECT ROOT IMPORT PATH
+# ============================================================================
 
 import sys
 from pathlib import Path
-
-import numpy as np
-
-
-# ---------------------------------------------------------------------
-# Project path
-# ---------------------------------------------------------------------
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -17,694 +72,1217 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
+# ============================================================================
+# IMPORTS
+# ============================================================================
+
+from dataclasses import dataclass
+from typing import Any
+
+import numpy as np
+
 from trust.governance import GovernanceEngine
+from trust.policy import PolicyDecision
+from trust.risk import RiskAssessment
 
 
-# ---------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------
+# ============================================================================
+# CONSTANTS
+# ============================================================================
 
 ACTION_DIM = 40
-NUM_USERS = 20
 
 
-# ---------------------------------------------------------------------
-# Controlled input helpers
-# ---------------------------------------------------------------------
+# ============================================================================
+# DETERMINISTIC POLICY TEST DOUBLE
+# ============================================================================
 
-def uniform_action(value: float) -> np.ndarray:
-    return np.full(
+class StubPolicyEngine:
+    """
+    Deterministic replacement for PolicyEngine.
+
+    GovernanceEngine uses:
+
+        self.policy.evaluate(action)
+
+    Therefore this stub implements evaluate().
+    """
+
+    def __init__(
+        self,
+        allowed: bool = True,
+        violations: list[str] | None = None,
+    ) -> None:
+
+        self.allowed = bool(allowed)
+        self.violations = list(violations or [])
+
+    def evaluate(
+        self,
+        action: np.ndarray,
+    ) -> PolicyDecision:
+        """
+        Return a deterministic PolicyDecision.
+
+        The actual PolicyDecision requires:
+
+            allowed
+            reason
+            violations
+            action
+        """
+
+        normalized_action = np.asarray(
+            action,
+            dtype=np.float32,
+        ).copy()
+
+        if self.allowed:
+            reason = "ACTION_APPROVED"
+        else:
+            reason = "POLICY_VIOLATION"
+
+        return PolicyDecision(
+            allowed=self.allowed,
+            reason=reason,
+            violations=self.violations,
+            action=normalized_action,
+        )
+
+
+# ============================================================================
+# DETERMINISTIC RISK TEST DOUBLE
+# ============================================================================
+
+class StubRiskConfig:
+    """
+    Minimal RiskConfig-compatible object.
+
+    GovernanceEngine accesses:
+
+        self.risk.config.minimum_trust
+    """
+
+    minimum_trust = 0.60
+
+
+class StubRiskEngine:
+    """
+    Deterministic replacement for RiskEngine.
+
+    GovernanceEngine uses:
+
+        self.risk.evaluate(...)
+
+    Therefore this stub implements evaluate().
+    """
+
+    def __init__(
+        self,
+        risk_score: float,
+        risk_level: str,
+        reasons: list[str] | None = None,
+    ) -> None:
+
+        self.risk_score = float(risk_score)
+        self.risk_level = str(risk_level).upper()
+        self.reasons = list(reasons or [])
+
+        self.config = StubRiskConfig()
+
+    def evaluate(
+        self,
+        action: np.ndarray,
+        trust_score: float,
+        telemetry: dict[str, Any] | None = None,
+    ) -> RiskAssessment:
+        """
+        Return a deterministic RiskAssessment.
+
+        This bypasses the numerical RiskEngine calculation intentionally.
+        The purpose is GovernanceEngine branch testing.
+        """
+
+        normalized_action = np.asarray(
+            action,
+            dtype=np.float32,
+        )
+
+        if self.risk_level == "LOW":
+
+            action_anomaly = 0.05
+
+        elif self.risk_level == "MEDIUM":
+
+            action_anomaly = 0.65
+
+        elif self.risk_level == "HIGH":
+
+            action_anomaly = 0.95
+
+        else:
+
+            raise ValueError(
+                f"Unsupported test risk level: "
+                f"{self.risk_level}"
+            )
+
+        return RiskAssessment(
+            risk_score=self.risk_score,
+            risk_level=self.risk_level,
+            action_anomaly=action_anomaly,
+            reasons=self.reasons,
+            trust_score=float(trust_score),
+        )
+
+
+# ============================================================================
+# DETERMINISTIC SAFE ENVELOPE
+# ============================================================================
+
+class StubSafeEnvelope:
+    """
+    Deterministic SafeEnvelope replacement.
+
+    Purpose
+    -------
+    Ensure that the CONSTRAIN branch visibly modifies the action.
+
+    The actual SafeEnvelope implementation is tested separately.
+
+    This test only verifies that GovernanceEngine:
+
+        MEDIUM risk
+            ->
+        invokes safe envelope
+            ->
+        returns CONSTRAIN
+            ->
+        returns constrained action.
+    """
+
+    @dataclass
+    class ConstraintResult:
+        """
+        Minimal result expected by GovernanceEngine.
+        """
+
+        action: np.ndarray
+        modified: bool
+
+    def apply(
+        self,
+        action: np.ndarray,
+    ) -> ConstraintResult:
+        """
+        Clip action values to [-0.5, 0.5].
+        """
+
+        original = np.asarray(
+            action,
+            dtype=np.float32,
+        ).copy()
+
+        constrained = np.clip(
+            original,
+            -0.5,
+            0.5,
+        ).astype(np.float32)
+
+        modified = not np.array_equal(
+            original,
+            constrained,
+        )
+
+        return self.ConstraintResult(
+            action=constrained,
+            modified=modified,
+        )
+
+
+# ============================================================================
+# ACTION HELPERS
+# ============================================================================
+
+def make_policy_compliant_action() -> np.ndarray:
+    """
+    Create a policy-compliant 40-dimensional action.
+
+    dimensions 0:20
+        bandwidth-related action
+
+    dimensions 20:40
+        power-related action
+    """
+
+    action = np.zeros(
         ACTION_DIM,
-        value,
         dtype=np.float32,
     )
 
-
-def policy_violation_action() -> np.ndarray:
-    """
-    Power action > 0.90.
-    This should be blocked by PolicyEngine.
-    """
-
-    action = uniform_action(0.0)
-
-    action[20] = 0.95
+    action[:20] = 0.50
+    action[20:] = 0.50
 
     return action
 
 
-def medium_risk_action() -> np.ndarray:
+def make_medium_risk_action() -> np.ndarray:
     """
-    Action = 0.89.
+    Create a policy-compliant action that the test SafeEnvelope
+    will visibly modify.
 
-    This remains within the current power policy limit
-    of 0.90, while producing substantial action anomaly.
+    0.80 is:
 
-    Combined with:
-        trust = 0.60
-        queue = 1.0
-        interference = 1.0
+        bandwidth <= 1.00  -> policy compliant
+        power <= 0.90      -> policy compliant
 
-    the current RiskEngine should produce MEDIUM risk.
-    """
+    SafeEnvelope:
 
-    return uniform_action(0.89)
-
-
-def high_risk_action() -> np.ndarray:
-    """
-    High anomaly but still policy-compliant action.
-
-    Used with very low trust and severe telemetry stress
-    to reach the HIGH risk branch.
+        0.80 -> 0.50
     """
 
-    return uniform_action(0.89)
-
-
-def zero_action() -> np.ndarray:
-    return uniform_action(0.0)
-
-
-def telemetry(
-    queue: float,
-    interference: float,
-) -> dict:
-
-    return {
-        "queue": np.full(
-            NUM_USERS,
-            queue,
-            dtype=np.float32,
-        ),
-        "interference": np.full(
-            NUM_USERS,
-            interference,
-            dtype=np.float32,
-        ),
-    }
-
-
-# ---------------------------------------------------------------------
-# Scenario definitions
-# ---------------------------------------------------------------------
-
-def build_scenarios():
-
-    return [
-
-        {
-            "name": "NORMAL_ALLOW",
-
-            "trust": 0.90,
-
-            "action": zero_action(),
-
-            "telemetry": telemetry(
-                queue=0.10,
-                interference=0.10,
-            ),
-
-            "expected_status": "ALLOW",
-
-            "expected_reason": "GOVERNANCE_APPROVED",
-        },
-
-        {
-            "name": "LOW_TRUST_BLOCK",
-
-            "trust": 0.30,
-
-            "action": zero_action(),
-
-            "telemetry": telemetry(
-                queue=0.10,
-                interference=0.10,
-            ),
-
-            "expected_status": "BLOCK",
-
-            "expected_reason": "TRUST_BELOW_MINIMUM",
-        },
-
-        {
-            "name": "POLICY_VIOLATION_BLOCK",
-
-            "trust": 0.90,
-
-            "action": policy_violation_action(),
-
-            "telemetry": telemetry(
-                queue=0.10,
-                interference=0.10,
-            ),
-
-            "expected_status": "BLOCK",
-
-            "expected_reason": "POLICY_VIOLATION",
-        },
-
-        {
-            "name": "MEDIUM_RISK_CONSTRAIN",
-
-            "trust": 0.60,
-
-            "action": medium_risk_action(),
-
-            "telemetry": telemetry(
-                queue=1.00,
-                interference=1.00,
-            ),
-
-            "expected_status": "CONSTRAIN",
-
-            "expected_reason": "MEDIUM_RISK_SAFE_ENVELOPE",
-        },
-
-        {
-            "name": "HIGH_RISK_BLOCK",
-
-            "trust": 0.15,
-
-            "action": high_risk_action(),
-
-            "telemetry": telemetry(
-                queue=1.00,
-                interference=1.00,
-            ),
-
-            "expected_status": "BLOCK",
-
-            "expected_reason": "HIGH_RISK",
-        },
-
-        {
-            "name": "COMBINED_STRESS_BLOCK",
-
-            "trust": 0.30,
-
-            "action": policy_violation_action(),
-
-            "telemetry": telemetry(
-                queue=1.00,
-                interference=1.00,
-            ),
-
-            "expected_status": "BLOCK",
-
-            "expected_reason": "POLICY_VIOLATION",
-        },
-    ]
-
-
-# ---------------------------------------------------------------------
-# Formatting
-# ---------------------------------------------------------------------
-
-def print_vector_summary(
-    name: str,
-    action: np.ndarray,
-):
-
-    print(
-        f"{name}: "
-        f"min={np.min(action):.4f}, "
-        f"max={np.max(action):.4f}, "
-        f"mean={np.mean(action):.4f}"
+    action = np.zeros(
+        ACTION_DIM,
+        dtype=np.float32,
     )
 
+    action[:20] = 0.80
+    action[20:] = 0.80
 
-# ---------------------------------------------------------------------
-# Main experiment
-# ---------------------------------------------------------------------
+    return action
 
-def main():
 
-    print("=" * 82)
-    print("TA-FDRL-IRF GOVERNANCE BRANCH COVERAGE TEST")
-    print("=" * 82)
+def make_policy_violation_action() -> np.ndarray:
+    """
+    Create a deliberately policy-invalid action.
 
-    print("\nInitializing GovernanceEngine...")
+    Power dimensions are 1.00, exceeding the configured
+    maximum normalized power of 0.90.
+    """
+
+    action = np.zeros(
+        ACTION_DIM,
+        dtype=np.float32,
+    )
+
+    action[:20] = 0.50
+    action[20:] = 1.00
+
+    return action
+
+
+# ============================================================================
+# GOVERNANCE FACTORY
+# ============================================================================
+
+def make_governance_engine(
+    *,
+    trust_score: float,
+    policy_allowed: bool,
+    policy_violations: list[str] | None,
+    risk_score: float,
+    risk_level: str,
+    risk_reasons: list[str] | None = None,
+) -> GovernanceEngine:
+    """
+    Construct GovernanceEngine with deterministic test dependencies.
+
+    Actual dependency attributes:
+
+        governance.policy
+        governance.risk
+        governance.safe_envelope
+    """
 
     governance = GovernanceEngine()
 
-    print("GovernanceEngine initialized.")
+    # ------------------------------------------------------------------------
+    # Policy test double
+    # ------------------------------------------------------------------------
 
-    scenarios = build_scenarios()
+    governance.policy = StubPolicyEngine(
+        allowed=policy_allowed,
+        violations=policy_violations,
+    )
 
-    results = []
+    # ------------------------------------------------------------------------
+    # Risk test double
+    # ------------------------------------------------------------------------
 
-    # -----------------------------------------------------------------
+    governance.risk = StubRiskEngine(
+        risk_score=risk_score,
+        risk_level=risk_level,
+        reasons=risk_reasons,
+    )
+
+    # ------------------------------------------------------------------------
+    # Safe envelope test double
+    # ------------------------------------------------------------------------
+
+    governance.safe_envelope = StubSafeEnvelope()
+
+    # ------------------------------------------------------------------------
+    # Explicit governance trust control
+    # ------------------------------------------------------------------------
+
+    governance.trust_engine.trust_score = float(
+        trust_score
+    )
+
+    governance.trust_engine.environment_trust = float(
+        trust_score
+    )
+
+    return governance
+
+
+# ============================================================================
+# SCENARIO DEFINITION
+# ============================================================================
+
+@dataclass
+class Scenario:
+    """
+    One deterministic governance branch test case.
+    """
+
+    name: str
+
+    trust_score: float
+
+    policy_allowed: bool
+    policy_violations: list[str]
+
+    risk_score: float
+    risk_level: str
+    risk_reasons: list[str]
+
+    expected_status: str
+    expected_reason: str
+
+    action: np.ndarray
+
+
+# ============================================================================
+# TEST SCENARIOS
+# ============================================================================
+
+SCENARIOS: list[Scenario] = [
+
+    # ------------------------------------------------------------------------
+    # 1. NORMAL ALLOW
+    # ------------------------------------------------------------------------
+
+    Scenario(
+        name="NORMAL_ALLOW",
+
+        trust_score=0.90,
+
+        policy_allowed=True,
+        policy_violations=[],
+
+        risk_score=0.10,
+        risk_level="LOW",
+        risk_reasons=[],
+
+        expected_status="ALLOW",
+        expected_reason="GOVERNANCE_APPROVED",
+
+        action=make_policy_compliant_action(),
+    ),
+
+    # ------------------------------------------------------------------------
+    # 2. LOW GOVERNANCE TRUST -> BLOCK
+    # ------------------------------------------------------------------------
+
+    Scenario(
+        name="LOW_TRUST_BLOCK",
+
+        trust_score=0.30,
+
+        policy_allowed=True,
+        policy_violations=[],
+
+        risk_score=0.10,
+        risk_level="LOW",
+        risk_reasons=["LOW_GOVERNANCE_TRUST"],
+
+        expected_status="BLOCK",
+        expected_reason="TRUST_BELOW_MINIMUM",
+
+        action=make_policy_compliant_action(),
+    ),
+
+    # ------------------------------------------------------------------------
+    # 3. POLICY VIOLATION -> BLOCK
+    # ------------------------------------------------------------------------
+
+    Scenario(
+        name="POLICY_VIOLATION_BLOCK",
+
+        trust_score=0.90,
+
+        policy_allowed=False,
+        policy_violations=[
+            "POWER_POLICY_VIOLATION"
+        ],
+
+        risk_score=0.10,
+        risk_level="LOW",
+        risk_reasons=[],
+
+        expected_status="BLOCK",
+        expected_reason="POLICY_VIOLATION",
+
+        action=make_policy_violation_action(),
+    ),
+
+    # ------------------------------------------------------------------------
+    # 4. MEDIUM RISK -> CONSTRAIN
+    # ------------------------------------------------------------------------
+
+    Scenario(
+        name="MEDIUM_RISK_CONSTRAIN",
+
+        trust_score=0.90,
+
+        policy_allowed=True,
+        policy_violations=[],
+
+        risk_score=0.65,
+        risk_level="MEDIUM",
+        risk_reasons=["MEDIUM_RISK"],
+
+        expected_status="CONSTRAIN",
+        expected_reason="MEDIUM_RISK_SAFE_ENVELOPE",
+
+        action=make_medium_risk_action(),
+    ),
+
+    # ------------------------------------------------------------------------
+    # 5. HIGH RISK -> BLOCK
+    # ------------------------------------------------------------------------
+
+    Scenario(
+        name="HIGH_RISK_BLOCK",
+
+        trust_score=0.90,
+
+        policy_allowed=True,
+        policy_violations=[],
+
+        risk_score=0.85,
+        risk_level="HIGH",
+        risk_reasons=["HIGH_RISK"],
+
+        expected_status="BLOCK",
+        expected_reason="HIGH_RISK",
+
+        action=make_policy_compliant_action(),
+    ),
+
+    # ------------------------------------------------------------------------
+    # 6. COMBINED STRESS
+    #
+    # Policy violation + HIGH risk + LOW governance trust.
+    #
+    # Policy violation must win because it has highest precedence.
+    # ------------------------------------------------------------------------
+
+    Scenario(
+        name="COMBINED_STRESS_BLOCK",
+
+        trust_score=0.30,
+
+        policy_allowed=False,
+        policy_violations=[
+            "POWER_POLICY_VIOLATION"
+        ],
+
+        risk_score=0.90,
+        risk_level="HIGH",
+        risk_reasons=[
+            "HIGH_QUEUE_PRESSURE",
+            "HIGH_INTERFERENCE",
+            "HIGH_RISK",
+        ],
+
+        expected_status="BLOCK",
+        expected_reason="POLICY_VIOLATION",
+
+        action=make_policy_violation_action(),
+    ),
+]
+
+
+# ============================================================================
+# SCENARIO RUNNER
+# ============================================================================
+
+def run_scenario(
+    scenario: Scenario,
+) -> dict[str, Any]:
+    """
+    Execute one governance branch scenario.
+    """
+
+    governance = make_governance_engine(
+        trust_score=scenario.trust_score,
+        policy_allowed=scenario.policy_allowed,
+        policy_violations=scenario.policy_violations,
+        risk_score=scenario.risk_score,
+        risk_level=scenario.risk_level,
+        risk_reasons=scenario.risk_reasons,
+    )
+
+    # ------------------------------------------------------------------------
+    # Controlled telemetry
+    # ------------------------------------------------------------------------
+
+    telemetry: dict[str, Any] = {
+        "queue_pressure": 0.20,
+        "interference": 0.20,
+        "power": 0.50,
+        "sinr": 10.0,
+        "trust": scenario.trust_score,
+    }
+
+    # ------------------------------------------------------------------------
+    # PRE-EXECUTION GOVERNANCE EVALUATION
+    # ------------------------------------------------------------------------
+
+    decision = governance.evaluate(
+        scenario.action,
+        trust_score=scenario.trust_score,
+        telemetry=telemetry,
+    )
+
+    # ------------------------------------------------------------------------
+    # Extract actual decision
+    # ------------------------------------------------------------------------
+
+    actual_status = str(
+        decision.status
+    )
+
+    actual_reason = str(
+        decision.reason
+    )
+
+    actual_risk_level = str(
+        decision.risk.risk_level
+    )
+
+    actual_risk_score = float(
+        decision.risk.risk_score
+    )
+
+    actual_policy_allowed = bool(
+        decision.policy.allowed
+    )
+
+    # ------------------------------------------------------------------------
+    # Status validation
+    # ------------------------------------------------------------------------
+
+    status_pass = (
+        actual_status
+        == scenario.expected_status
+    )
+
+    # ------------------------------------------------------------------------
+    # Reason validation
+    # ------------------------------------------------------------------------
+
+    reason_pass = (
+        actual_reason
+        == scenario.expected_reason
+    )
+
+    # ------------------------------------------------------------------------
+    # Risk validation
+    # ------------------------------------------------------------------------
+
+    risk_level_pass = (
+        actual_risk_level
+        == scenario.risk_level
+    )
+
+    risk_score_pass = bool(
+        np.isclose(
+            actual_risk_score,
+            scenario.risk_score,
+        )
+    )
+
+    # ------------------------------------------------------------------------
+    # Policy validation
+    # ------------------------------------------------------------------------
+
+    policy_pass = (
+        actual_policy_allowed
+        == scenario.policy_allowed
+    )
+
+    # ------------------------------------------------------------------------
+    # Decision action validation
+    # ------------------------------------------------------------------------
+
+    decision_action = np.asarray(
+        decision.action,
+        dtype=np.float32,
+    )
+
+    proposed_action = np.asarray(
+        decision.proposed_action,
+        dtype=np.float32,
+    )
+
+    action_shape_pass = (
+        decision_action.shape
+        == (ACTION_DIM,)
+    )
+
+    proposed_shape_pass = (
+        proposed_action.shape
+        == (ACTION_DIM,)
+    )
+
+    action_finite_pass = bool(
+        np.all(
+            np.isfinite(
+                decision_action
+            )
+        )
+    )
+
+    # ------------------------------------------------------------------------
+    # Safe-envelope validation
+    # ------------------------------------------------------------------------
+
+    constraint_pass = True
+    constraint_details: dict[str, Any] = {}
+
+    if scenario.expected_status == "CONSTRAIN":
+
+        original_action = np.asarray(
+            scenario.action,
+            dtype=np.float32,
+        )
+
+        # Shape
+        shape_pass = (
+            decision_action.shape
+            == original_action.shape
+        )
+
+        # Finite
+        finite_pass = bool(
+            np.all(
+                np.isfinite(
+                    decision_action
+                )
+            )
+        )
+
+        # Must be transformed
+        transformed_pass = not np.array_equal(
+            decision_action,
+            original_action,
+        )
+
+        # GovernanceDecision.modified
+        modified_flag_pass = bool(
+            decision.modified
+        )
+
+        # Safe envelope should produce 0.50 maximum
+        envelope_limit_pass = bool(
+            np.all(
+                np.abs(decision_action)
+                <= 0.50 + 1e-6
+            )
+        )
+
+        constraint_pass = (
+            shape_pass
+            and finite_pass
+            and transformed_pass
+            and modified_flag_pass
+            and envelope_limit_pass
+        )
+
+        constraint_details = {
+            "shape_pass": shape_pass,
+            "finite_pass": finite_pass,
+            "transformed_pass": transformed_pass,
+            "modified_flag_pass": modified_flag_pass,
+            "envelope_limit_pass": envelope_limit_pass,
+            "original_mean": float(
+                np.mean(original_action)
+            ),
+            "constrained_mean": float(
+                np.mean(decision_action)
+            ),
+        }
+
+    # ------------------------------------------------------------------------
+    # BLOCK action validation
+    # ------------------------------------------------------------------------
+
+    block_action_pass = True
+
+    if scenario.expected_status == "BLOCK":
+
+        # Governance BLOCK should return a valid action.
+        #
+        # Exact fallback semantics are tested elsewhere.
+        block_action_pass = (
+            action_shape_pass
+            and action_finite_pass
+        )
+
+    # ------------------------------------------------------------------------
+    # ALLOW action validation
+    # ------------------------------------------------------------------------
+
+    allow_action_pass = True
+
+    if scenario.expected_status == "ALLOW":
+
+        allow_action_pass = (
+            action_shape_pass
+            and action_finite_pass
+            and np.array_equal(
+                decision_action,
+                proposed_action,
+            )
+        )
+
+    # ------------------------------------------------------------------------
+    # Overall scenario result
+    # ------------------------------------------------------------------------
+
+    passed = (
+        status_pass
+        and reason_pass
+        and risk_level_pass
+        and risk_score_pass
+        and policy_pass
+        and action_shape_pass
+        and proposed_shape_pass
+        and action_finite_pass
+        and constraint_pass
+        and block_action_pass
+        and allow_action_pass
+    )
+
+    # ------------------------------------------------------------------------
+    # Console output
+    # ------------------------------------------------------------------------
+
+    print()
+    print(
+        f"SCENARIO: {scenario.name}"
+    )
+    print("-" * 78)
+
+    print(
+        f"Trust              : "
+        f"{scenario.trust_score:.4f}"
+    )
+
+    print(
+        f"Risk score         : "
+        f"{actual_risk_score:.6f}"
+    )
+
+    print(
+        f"Risk level         : "
+        f"{actual_risk_level}"
+    )
+
+    print(
+        f"Policy allowed     : "
+        f"{actual_policy_allowed}"
+    )
+
+    print(
+        f"Policy violations  : "
+        f"{scenario.policy_violations}"
+    )
+
+    print(
+        f"Expected status    : "
+        f"{scenario.expected_status}"
+    )
+
+    print(
+        f"Actual status      : "
+        f"{actual_status}"
+    )
+
+    print(
+        f"Expected reason    : "
+        f"{scenario.expected_reason}"
+    )
+
+    print(
+        f"Actual reason      : "
+        f"{actual_reason}"
+    )
+
+    print(
+        "Policy check       : "
+        f"{'PASS' if policy_pass else 'FAIL'}"
+    )
+
+    print(
+        "Risk injection     : "
+        f"{'PASS' if (risk_level_pass and risk_score_pass) else 'FAIL'}"
+    )
+
+    print(
+        "Decision action    : "
+        f"{'PASS' if (action_shape_pass and action_finite_pass) else 'FAIL'}"
+    )
+
+    if scenario.expected_status == "CONSTRAIN":
+
+        print(
+            "Safe-envelope test : "
+            f"{'PASS' if constraint_pass else 'FAIL'}"
+        )
+
+        print(
+            f"  Original mean    : "
+            f"{constraint_details['original_mean']:.4f}"
+        )
+
+        print(
+            f"  Constrained mean : "
+            f"{constraint_details['constrained_mean']:.4f}"
+        )
+
+        print(
+            f"  Shape            : "
+            f"{'PASS' if constraint_details['shape_pass'] else 'FAIL'}"
+        )
+
+        print(
+            f"  Finite           : "
+            f"{'PASS' if constraint_details['finite_pass'] else 'FAIL'}"
+        )
+
+        print(
+            f"  Transformed      : "
+            f"{'PASS' if constraint_details['transformed_pass'] else 'FAIL'}"
+        )
+
+        print(
+            f"  Modified flag    : "
+            f"{'PASS' if constraint_details['modified_flag_pass'] else 'FAIL'}"
+        )
+
+        print(
+            f"  Envelope limit   : "
+            f"{'PASS' if constraint_details['envelope_limit_pass'] else 'FAIL'}"
+        )
+
+    print(
+        "RESULT             : "
+        f"{'PASS' if passed else 'FAIL'}"
+    )
+
+    return {
+        "name": scenario.name,
+
+        "expected_status": scenario.expected_status,
+        "actual_status": actual_status,
+
+        "expected_reason": scenario.expected_reason,
+        "actual_reason": actual_reason,
+
+        "expected_risk_level": scenario.risk_level,
+        "actual_risk_level": actual_risk_level,
+
+        "expected_risk_score": scenario.risk_score,
+        "actual_risk_score": actual_risk_score,
+
+        "expected_policy_allowed": scenario.policy_allowed,
+        "actual_policy_allowed": actual_policy_allowed,
+
+        "constraint_pass": constraint_pass,
+
+        "action_shape_pass": action_shape_pass,
+        "action_finite_pass": action_finite_pass,
+
+        "passed": passed,
+    }
+
+
+# ============================================================================
+# MAIN
+# ============================================================================
+
+def main() -> None:
+    """
+    Execute all governance branch scenarios.
+    """
+
+    print("=" * 78)
+    print(
+        "TA-FDRL-IRF GOVERNANCE BRANCH COVERAGE TEST"
+    )
+    print("=" * 78)
+
+    print()
+    print("Architecture under test:")
+
+    print(
+        "  Policy violation       -> BLOCK"
+    )
+
+    print(
+        "  HIGH risk              -> BLOCK"
+    )
+
+    print(
+        "  Low governance trust  -> BLOCK"
+    )
+
+    print(
+        "  MEDIUM risk            -> CONSTRAIN"
+    )
+
+    print(
+        "  Otherwise              -> ALLOW"
+    )
+
+    print()
+    print("NOTE:")
+
+    print(
+        "This test isolates GovernanceEngine decision branches."
+    )
+
+    print(
+        "RiskEngine numerical calibration is intentionally tested separately."
+    )
+
+    print()
+    print(
+        "Project root: "
+        f"{PROJECT_ROOT}"
+    )
+
+    # ------------------------------------------------------------------------
     # Execute scenarios
-    # -----------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
-    for index, scenario in enumerate(
-        scenarios,
-        start=1,
-    ):
+    results: list[dict[str, Any]] = []
 
-        print("\n")
-        print("-" * 82)
-        print(
-            f"SCENARIO {index}/{len(scenarios)}: "
-            f"{scenario['name']}"
-        )
-        print("-" * 82)
-
-        action = scenario["action"]
-
-        print(
-            f"Trust:             "
-            f"{scenario['trust']:.4f}"
-        )
-
-        print_vector_summary(
-            "Proposed action",
-            action,
-        )
-
-        decision = governance.evaluate(
-            action,
-            trust_score=scenario["trust"],
-            telemetry=scenario["telemetry"],
-        )
-
-        # -------------------------------------------------------------
-        # Action comparison
-        # -------------------------------------------------------------
-
-        proposed = np.asarray(
-            decision.proposed_action,
-            dtype=np.float32,
-        )
-
-        executed = np.asarray(
-            decision.action,
-            dtype=np.float32,
-        )
-
-        difference = np.abs(
-            executed - proposed
-        )
-
-        max_difference = float(
-            np.max(difference)
-        )
-
-        mean_difference = float(
-            np.mean(difference)
-        )
-
-        # -------------------------------------------------------------
-        # Status validation
-        # -------------------------------------------------------------
-
-        status_pass = (
-            decision.status
-            == scenario["expected_status"]
-        )
-
-        reason_pass = (
-            decision.reason
-            == scenario["expected_reason"]
-        )
-
-        scenario_pass = (
-            status_pass
-            and reason_pass
-        )
-
-        # -------------------------------------------------------------
-        # Output
-        # -------------------------------------------------------------
-
-        print(
-            f"Risk score:        "
-            f"{decision.risk.risk_score:.6f}"
-        )
-
-        print(
-            f"Risk level:        "
-            f"{decision.risk.risk_level}"
-        )
-
-        print(
-            f"Action anomaly:    "
-            f"{decision.risk.action_anomaly:.6f}"
-        )
-
-        print(
-            f"Policy allowed:    "
-            f"{decision.policy.allowed}"
-        )
-
-        print(
-            f"Policy violations: "
-            f"{decision.policy.violations}"
-        )
-
-        print(
-            f"Risk reasons:      "
-            f"{decision.risk.reasons}"
-        )
-
-        print(
-            f"Expected status:   "
-            f"{scenario['expected_status']}"
-        )
-
-        print(
-            f"Actual status:     "
-            f"{decision.status}"
-        )
-
-        print(
-            f"Expected reason:   "
-            f"{scenario['expected_reason']}"
-        )
-
-        print(
-            f"Actual reason:     "
-            f"{decision.reason}"
-        )
-
-        print(
-            f"Action modified:   "
-            f"{decision.modified}"
-        )
-
-        print(
-            f"Max action delta:  "
-            f"{max_difference:.8f}"
-        )
-
-        print(
-            f"Mean action delta: "
-            f"{mean_difference:.8f}"
-        )
-
-        print(
-            f"STATUS CHECK:      "
-            f"{'PASS' if status_pass else 'FAIL'}"
-        )
-
-        print(
-            f"REASON CHECK:      "
-            f"{'PASS' if reason_pass else 'FAIL'}"
-        )
-
-        print(
-            f"SCENARIO RESULT:   "
-            f"{'PASS' if scenario_pass else 'FAIL'}"
-        )
-
-        # -------------------------------------------------------------
-        # Store result
-        # -------------------------------------------------------------
+    for scenario in SCENARIOS:
 
         results.append(
-            {
-                "name": scenario["name"],
-                "trust": float(scenario["trust"]),
-                "risk": float(
-                    decision.risk.risk_score
-                ),
-                "risk_level": decision.risk.risk_level,
-                "expected_status": scenario[
-                    "expected_status"
-                ],
-                "actual_status": decision.status,
-                "expected_reason": scenario[
-                    "expected_reason"
-                ],
-                "actual_reason": decision.reason,
-                "modified": bool(
-                    decision.modified
-                ),
-                "max_delta": max_difference,
-                "mean_delta": mean_difference,
-                "status_pass": status_pass,
-                "reason_pass": reason_pass,
-                "passed": scenario_pass,
-            }
+            run_scenario(
+                scenario
+            )
         )
 
-    # -----------------------------------------------------------------
-    # Summary
-    # -----------------------------------------------------------------
+    # ------------------------------------------------------------------------
+    # Aggregate results
+    # ------------------------------------------------------------------------
+
+    total = len(results)
 
     passed = sum(
-        result["passed"]
+        1
         for result in results
+        if result["passed"]
     )
 
-    failed = (
-        len(results)
-        - passed
+    failed = total - passed
+
+    pass_rate = (
+        (passed / total) * 100.0
+        if total > 0
+        else 0.0
     )
 
-    print("\n")
-    print("=" * 82)
-    print("BRANCH COVERAGE SUMMARY")
-    print("=" * 82)
-
-    print(
-        f"Scenarios:          {len(results)}"
-    )
-
-    print(
-        f"Passed:             {passed}"
-    )
-
-    print(
-        f"Failed:             {failed}"
-    )
-
-    print(
-        f"Pass rate:          "
-        f"{100.0 * passed / len(results):.2f}%"
-    )
-
-    # -----------------------------------------------------------------
-    # Decision distribution
-    # -----------------------------------------------------------------
+    # ------------------------------------------------------------------------
+    # Branch counts
+    # ------------------------------------------------------------------------
 
     allow_count = sum(
-        r["actual_status"] == "ALLOW"
-        for r in results
+        1
+        for result in results
+        if result["actual_status"] == "ALLOW"
     )
 
     constrain_count = sum(
-        r["actual_status"] == "CONSTRAIN"
-        for r in results
+        1
+        for result in results
+        if result["actual_status"] == "CONSTRAIN"
     )
 
     block_count = sum(
-        r["actual_status"] == "BLOCK"
-        for r in results
+        1
+        for result in results
+        if result["actual_status"] == "BLOCK"
     )
 
-    print("\n")
-    print("=" * 82)
-    print("DECISION BRANCH COVERAGE")
-    print("=" * 82)
+    # ------------------------------------------------------------------------
+    # Branch coverage
+    # ------------------------------------------------------------------------
+
+    branch_expectations = {
+        "ALLOW": allow_count > 0,
+        "CONSTRAIN": constrain_count > 0,
+        "BLOCK": block_count > 0,
+    }
+
+    all_branches_covered = all(
+        branch_expectations.values()
+    )
+
+    # ------------------------------------------------------------------------
+    # Scenario coverage
+    # ------------------------------------------------------------------------
+
+    scenario_expectations = {
+        scenario.name: any(
+            result["name"] == scenario.name
+            and result["passed"]
+            for result in results
+        )
+        for scenario in SCENARIOS
+    }
+
+    all_scenarios_passed = all(
+        scenario_expectations.values()
+    )
+
+    # ------------------------------------------------------------------------
+    # Summary
+    # ------------------------------------------------------------------------
+
+    print()
+    print("=" * 78)
+    print("SUMMARY")
+    print("=" * 78)
 
     print(
-        f"ALLOW:             "
+        f"Scenarios             : {total}"
+    )
+
+    print(
+        f"Passed                : {passed}"
+    )
+
+    print(
+        f"Failed                : {failed}"
+    )
+
+    print(
+        f"Pass rate             : "
+        f"{pass_rate:.1f}%"
+    )
+
+    print()
+
+    print(
+        f"ALLOW                 : "
         f"{allow_count}"
     )
 
     print(
-        f"CONSTRAIN:         "
+        f"CONSTRAIN             : "
         f"{constrain_count}"
     )
 
     print(
-        f"BLOCK:             "
+        f"BLOCK                 : "
         f"{block_count}"
     )
 
-    # -----------------------------------------------------------------
-    # CONSTRAIN-specific analysis
-    # -----------------------------------------------------------------
+    print()
+    print("Branch coverage:")
 
-    constrain_results = [
-        r
-        for r in results
-        if r["actual_status"] == "CONSTRAIN"
-    ]
-
-    print("\n")
-    print("=" * 82)
-    print("CONSTRAIN BRANCH ANALYSIS")
-    print("=" * 82)
-
-    if not constrain_results:
+    for branch, covered in branch_expectations.items():
 
         print(
-            "CONSTRAIN branch was NOT reached."
+            f"  {branch:<10} : "
+            f"{'COVERED' if covered else 'NOT COVERED'}"
+        )
+
+    print()
+    print("Scenario validation:")
+
+    for scenario_name, scenario_passed in scenario_expectations.items():
+
+        print(
+            f"  {scenario_name:<24} : "
+            f"{'PASS' if scenario_passed else 'FAIL'}"
+        )
+
+    print()
+    print("=" * 78)
+
+    # ------------------------------------------------------------------------
+    # Final validation
+    # ------------------------------------------------------------------------
+
+    if (
+        passed == total
+        and all_branches_covered
+        and all_scenarios_passed
+    ):
+
+        print(
+            "RESULT: GOVERNANCE BRANCH COVERAGE PASSED"
         )
 
         print(
-            "No action-transformation analysis "
-            "can be performed."
+            f"RESULT: {passed}/{total} SCENARIOS PASSED"
         )
-
-    else:
 
         print(
-            f"CONSTRAIN scenarios reached: "
-            f"{len(constrain_results)}"
+            "RESULT: ALLOW / CONSTRAIN / BLOCK ALL REACHED"
         )
 
-        for result in constrain_results:
-
-            print("\n")
-            print(
-                f"Scenario: "
-                f"{result['name']}"
-            )
-
-            print(
-                f"Modified: "
-                f"{result['modified']}"
-            )
-
-            print(
-                f"Maximum action delta: "
-                f"{result['max_delta']:.8f}"
-            )
-
-            print(
-                f"Mean action delta: "
-                f"{result['mean_delta']:.8f}"
-            )
-
-            if result["modified"]:
-
-                print(
-                    "SAFE-ENVELOPE EFFECT: "
-                    "ACTION WAS MODIFIED"
-                )
-
-            else:
-
-                print(
-                    "SAFE-ENVELOPE EFFECT: "
-                    "NO ACTION MODIFICATION"
-                )
-
-                print(
-                    "ARCHITECTURAL FINDING: "
-                    "The current CONSTRAIN branch "
-                    "does not materially transform "
-                    "a policy-compliant action."
-                )
-
-    # -----------------------------------------------------------------
-    # Reason precedence analysis
-    # -----------------------------------------------------------------
-
-    print("\n")
-    print("=" * 82)
-    print("DECISION PRECEDENCE ANALYSIS")
-    print("=" * 82)
-
-    print(
-        "Current GovernanceEngine precedence:"
-    )
-
-    print(
-        "1. Policy violation -> BLOCK"
-    )
-
-    print(
-        "2. HIGH risk -> BLOCK"
-    )
-
-    print(
-        "3. Trust below minimum -> BLOCK"
-    )
-
-    print(
-        "4. MEDIUM risk -> CONSTRAIN"
-    )
-
-    print(
-        "5. Otherwise -> ALLOW"
-    )
-
-    print("\n")
-
-    combined_policy_cases = [
-        r
-        for r in results
-        if (
-            r["actual_status"] == "BLOCK"
-            and r["actual_reason"]
-            == "POLICY_VIOLATION"
+        print(
+            "RESULT: MEDIUM-RISK SAFE-ENVELOPE PATH VERIFIED"
         )
-    ]
+
+        print(
+            "RESULT: HIGH-RISK HARD-BLOCK PATH VERIFIED"
+        )
+
+        print(
+            "RESULT: POLICY-PRECEDENCE PATH VERIFIED"
+        )
+
+        print("=" * 78)
+
+        return
+
+    # ------------------------------------------------------------------------
+    # Failure
+    # ------------------------------------------------------------------------
 
     print(
-        f"Policy-first BLOCK cases: "
-        f"{len(combined_policy_cases)}"
+        "RESULT: GOVERNANCE BRANCH COVERAGE FAILED"
     )
 
-    # -----------------------------------------------------------------
-    # Scientific interpretation
-    # -----------------------------------------------------------------
+    print("=" * 78)
 
-    print("\n")
-    print("=" * 82)
-    print("SCIENTIFIC INTERPRETATION")
-    print("=" * 82)
+    raise SystemExit(1)
 
-    print(
-        "This experiment validates governance "
-        "branch reachability using controlled "
-        "synthetic scenarios."
-    )
 
-    print(
-        "The experiment does not modify the SAC "
-        "agent, IRF environment, reward function, "
-        "or existing scientific benchmarks."
-    )
-
-    print(
-        "ALLOW demonstrates acceptance of a "
-        "policy-compliant low-risk action."
-    )
-
-    print(
-        "BLOCK demonstrates enforcement of hard "
-        "policy, trust, or high-risk conditions."
-    )
-
-    print(
-        "CONSTRAIN demonstrates whether the current "
-        "architecture can transform a medium-risk "
-        "action before execution."
-    )
-
-    print(
-        "A CONSTRAIN decision with zero action delta "
-        "indicates that the current constraint "
-        "mechanism is logically present but "
-        "operationally weak."
-    )
-
-    print(
-        "Synthetic stress conditions must not be "
-        "interpreted as physical-world measurements."
-    )
-
-    print("\n")
-    print("=" * 82)
-    print("GOVERNANCE BRANCH COVERAGE TEST COMPLETE")
-    print("=" * 82)
-
+# ============================================================================
+# ENTRY POINT
+# ============================================================================
 
 if __name__ == "__main__":
     main()

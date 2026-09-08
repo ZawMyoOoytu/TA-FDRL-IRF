@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -41,25 +40,22 @@ DEFAULT_SEED = 42
 
 
 # ============================================================
-# PHASE-4B.1 ENVIRONMENT
+# PHASE-3 ENVIRONMENT
 # ============================================================
 
 def create_environment(
     seed: int = DEFAULT_SEED,
 ) -> IRFEnvironment:
     """
-    Create the Phase-4B.1 IRF environment.
+    Create the Phase-3 IRF environment.
 
     IMPORTANT
     ---------
-    The validated 100-D state / 40-D action interface is preserved.
+    This configuration intentionally preserves the existing
+    research environment and adaptive-trust formulation.
 
-    Phase-4B.1 keeps the SAC observation/action space unchanged while
-    the underlying IRF PHY may expose polarization-aware diagnostics.
-
-    Governance remains an external execution-control layer and does
-    not replace the domain-level trust dynamics implemented inside
-    IRFEnvironment.
+    Governance is an external control layer. It does not replace
+    the domain-level trust dynamics implemented inside IRFEnvironment.
     """
 
     config = IRFConfig(
@@ -89,7 +85,7 @@ def create_environment(
         max_steps=MAX_STEPS,
 
         # ----------------------------------------------------
-        # Phase-4B.1 control
+        # Phase-3 control
         # ----------------------------------------------------
         optimize_ris=False,
         fixed_trust=False,
@@ -147,8 +143,8 @@ def create_agent(
     env: IRFEnvironment,
 ) -> SACAgent:
     """
-    Create the SAC agent using the architecture expected by
-    the existing Phase-3 adaptive-trust checkpoint.
+    Create the SAC agent using the same architecture expected
+    by the Phase-3 checkpoint.
     """
 
     agent = SACAgent(
@@ -255,13 +251,11 @@ def make_block_fallback(
     """
     Create a neutral zero-action fallback for BLOCK decisions.
 
-    BLOCK semantics
-    ---------------
-    The candidate action must NOT reach IRFEnvironment.
+    BLOCK is enforced by the runtime here.
 
     GovernanceEngine decides BLOCK.
-    live_runner enforces BLOCK by replacing the candidate with
-    a designated safe fallback action.
+    live_runner prevents the blocked action from reaching
+    IRFEnvironment.
     """
 
     return np.zeros(
@@ -337,8 +331,12 @@ def get_telemetry(
     """
     Extract telemetry from the actual IRF environment.
 
-    Preserves both environment-level arrays and info-level
-    scalar metrics for governance and dashboard visualization.
+    The function intentionally preserves both:
+        - environment-level arrays
+        - info-level scalar metrics
+
+    This makes the telemetry useful for both governance and
+    dashboard visualization.
     """
 
     # --------------------------------------------------------
@@ -517,63 +515,35 @@ def get_telemetry(
     )
 
     # --------------------------------------------------------
-    # Optional Phase-4B.1 polarization diagnostics
-    # --------------------------------------------------------
-    #
-    # These remain observational telemetry.
-    # They are NOT added to the SAC state.
-    #
-    # The values are included only when the environment exposes
-    # them. Missing diagnostics are represented by None.
-    # --------------------------------------------------------
-
-    polarization_gain = info.get(
-        "polarization_gain",
-        info.get(
-            "polarization_power_gain",
-            None,
-        ),
-    )
-
-    pqi = info.get(
-        "pqi",
-        info.get(
-            "polarization_quality_index",
-            None,
-        ),
-    )
-
-    xpi = info.get(
-        "xpi",
-        info.get(
-            "cross_polarization_isolation",
-            None,
-        ),
-    )
-
-    # --------------------------------------------------------
     # Return telemetry
     # --------------------------------------------------------
 
     return {
         "trust": trust,
-        "queue": queue,
-        "interference": interference,
-        "power": power,
-        "sinr": sinr,
-        "spectral_efficiency": spectral_efficiency,
-        "energy_efficiency": energy_efficiency,
-        "rate": rate,
-        "behavior_score": behavior_score,
-        "trust_delta": trust_delta,
-        "arrival_mean": arrival_mean,
-        "arrival_sum": arrival_sum,
-        "interference_ratio": interference_ratio,
 
-        # Observational Phase-4B.1 diagnostics
-        "polarization_gain": polarization_gain,
-        "pqi": pqi,
-        "xpi": xpi,
+        "queue": queue,
+
+        "interference": interference,
+
+        "power": power,
+
+        "sinr": sinr,
+
+        "spectral_efficiency": spectral_efficiency,
+
+        "energy_efficiency": energy_efficiency,
+
+        "rate": rate,
+
+        "behavior_score": behavior_score,
+
+        "trust_delta": trust_delta,
+
+        "arrival_mean": arrival_mean,
+
+        "arrival_sum": arrival_sum,
+
+        "interference_ratio": interference_ratio,
     }
 
 
@@ -585,10 +555,10 @@ def get_pre_action_telemetry(
     env: IRFEnvironment,
 ) -> dict[str, Any]:
     """
-    Collect only telemetry required by the GovernanceEngine
-    before executing an action.
+    Collect only the telemetry required by the governance
+    engine before executing an action.
 
-    This function does not modify the environment.
+    This intentionally avoids modifying the environment.
     """
 
     queue = np.asarray(
@@ -617,6 +587,7 @@ def get_pre_action_telemetry(
 
     return {
         "queue": queue.copy(),
+
         "interference": interference.copy(),
     }
 
@@ -628,7 +599,8 @@ def get_current_trust(
     Read the current domain-level trust maintained by
     IRFEnvironment.
 
-    This remains the authoritative domain trust signal.
+    This is the authoritative trust signal for the current
+    Phase-3 runtime.
     """
 
     trust = getattr(
@@ -656,11 +628,7 @@ def evaluate_governance(
     env: IRFEnvironment,
 ) -> Any:
     """
-    Evaluate a proposed SAC action through GovernanceEngine.
-
-    PRE-EXECUTION ONLY.
-
-    No execution history or trust mutation occurs here.
+    Evaluate a proposed SAC action through the GovernanceEngine.
     """
 
     current_trust = get_current_trust(
@@ -688,35 +656,15 @@ def resolve_executed_action(
     decision: Any,
     proposed_action: np.ndarray,
     action_dim: int,
-) -> tuple[np.ndarray, bool, bool]:
+) -> tuple[np.ndarray, bool]:
     """
-    Convert a GovernanceDecision into the actual action reaching
-    IRFEnvironment.
+    Convert a governance decision into the actual action that
+    is allowed to reach the IRF environment.
 
     Returns
     -------
-    executed_action:
-        Actual action passed to IRFEnvironment.
-
-    fallback_used:
-        True only when BLOCK caused the designated safe fallback
-        to execute.
-
-    candidate_executed:
-        True when the SAC candidate action itself was executed
-        through the governance path.
-
-    H5-C semantics
-    --------------
-    ALLOW
-        decision.action executes.
-
-    CONSTRAIN
-        SafeEnvelope-modified decision.action executes.
-
-    BLOCK
-        Candidate action does NOT execute.
-        Safe fallback executes instead.
+    executed_action
+    fallback_used
     """
 
     status = str(
@@ -740,11 +688,10 @@ def resolve_executed_action(
         return (
             executed_action,
             True,
-            False,
         )
 
     # --------------------------------------------------------
-    # ALLOW / CONSTRAIN
+    # ALLOW / CONSTRAIN / other non-block status
     # --------------------------------------------------------
 
     decision_action = getattr(
@@ -762,33 +709,7 @@ def resolve_executed_action(
     return (
         executed_action,
         False,
-        True,
     )
-
-
-# ============================================================
-# TRUST STATE EXTRACTION
-# ============================================================
-
-def get_governance_trust_state(
-    governance: GovernanceEngine,
-) -> dict[str, Any]:
-    """
-    Safely retrieve the current Governance TrustEngine state.
-    """
-
-    try:
-        state = governance.get_trust_state()
-    except Exception:
-        state = {}
-
-    if not isinstance(
-        state,
-        dict,
-    ):
-        state = {}
-
-    return state
 
 
 # ============================================================
@@ -803,40 +724,21 @@ def build_governance_record(
     telemetry: dict[str, Any],
     done: bool,
     fallback_used: bool,
-    candidate_executed: bool,
     env: IRFEnvironment,
-    trust_state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Build a dashboard-safe governance record.
 
-    Execution semantics
-    -------------------
-        SAC candidate
-             |
-             v
-        Governance
-             |
-       +-----+----------+
-       |     |          |
-      ALLOW CONSTRAIN  BLOCK
-       |     |          |
-       v     v          v
-    decision  safe     fallback
-     action  envelope    action
-       |     |          |
-       +-----+----------+
-             |
-             v
-        IRFEnvironment
-             |
-             v
-        Post-execution
-        Trust feedback
-    """
+    The record contains enough information to inspect:
 
-    if trust_state is None:
-        trust_state = {}
+        SAC proposal
+            ↓
+        Governance decision
+            ↓
+        Actual executed action
+            ↓
+        IRF outcome
+    """
 
     # --------------------------------------------------------
     # Risk
@@ -936,24 +838,6 @@ def build_governance_record(
         )
     )
 
-    # --------------------------------------------------------
-    # IMPORTANT H5-C SEMANTICS
-    # --------------------------------------------------------
-    #
-    # modified means the GovernanceDecision itself modified
-    # the candidate action, normally through CONSTRAIN.
-    #
-    # BLOCK fallback is NOT a constraint modification.
-    #
-    # Therefore:
-    #
-    #     ALLOW     -> modified=False
-    #     CONSTRAIN -> modified=decision.modified
-    #     BLOCK     -> modified=False
-    #
-    # fallback_used independently indicates BLOCK fallback.
-    # --------------------------------------------------------
-
     modified = bool(
         getattr(
             decision,
@@ -962,8 +846,11 @@ def build_governance_record(
         )
     )
 
-    if governance_status == "BLOCK":
-        modified = False
+    # BLOCK fallback itself is also a modification of the
+    # proposed action, even if the GovernanceEngine did not
+    # explicitly mark it as modified.
+    if fallback_used:
+        modified = True
 
     # --------------------------------------------------------
     # Step
@@ -978,152 +865,40 @@ def build_governance_record(
     )
 
     # --------------------------------------------------------
-    # Governance Trust
-    # --------------------------------------------------------
-
-    governance_trust = safe_float(
-        trust_state.get(
-            "trust_score",
-            0.0,
-        )
-    )
-
-    environment_trust = safe_float(
-        trust_state.get(
-            "environment_trust",
-            telemetry.get(
-                "trust",
-                0.0,
-            ),
-        )
-    )
-
-    reliability_score = safe_float(
-        trust_state.get(
-            "reliability_score",
-            0.0,
-        )
-    )
-
-    policy_compliance = safe_float(
-        trust_state.get(
-            "policy_compliance",
-            0.0,
-        )
-    )
-
-    behavioral_stability = safe_float(
-        trust_state.get(
-            "behavioral_stability",
-            0.0,
-        )
-    )
-
-    outcome_score = safe_float(
-        trust_state.get(
-            "outcome_score",
-            0.0,
-        )
-    )
-
-    history_length = int(
-        trust_state.get(
-            "history_length",
-            0,
-        )
-    )
-
-    action_history_length = int(
-        trust_state.get(
-            "action_history_length",
-            0,
-        )
-    )
-
-    risk_history_length = int(
-        trust_state.get(
-            "risk_history_length",
-            0,
-        )
-    )
-
-    policy_history_length = int(
-        trust_state.get(
-            "policy_history_length",
-            0,
-        )
-    )
-
-    outcome_history_length = int(
-        trust_state.get(
-            "outcome_history_length",
-            0,
-        )
-    )
-
-    trust_reasons = trust_state.get(
-        "reasons",
-        [],
-    )
-
-    if trust_reasons is None:
-        trust_reasons = []
-
-    # --------------------------------------------------------
     # Record
     # --------------------------------------------------------
 
     return {
-        # ----------------------------------------------------
         # Runtime
-        # ----------------------------------------------------
         "step": step_count,
         "done": bool(done),
 
-        # ----------------------------------------------------
         # Reward
-        # ----------------------------------------------------
         "reward": safe_float(
             reward
         ),
 
-        # ----------------------------------------------------
         # Governance
-        # ----------------------------------------------------
         "governance": governance_status,
         "reason": reason,
 
-        # ----------------------------------------------------
         # Risk
-        # ----------------------------------------------------
         "risk_score": risk_score,
         "risk_level": risk_level,
         "trust_score": trust_score,
         "action_anomaly": action_anomaly,
 
-        # ----------------------------------------------------
         # Policy
-        # ----------------------------------------------------
         "policy_allowed": policy_allowed,
         "policy_violations": policy_violations,
 
-        # ----------------------------------------------------
-        # Execution semantics
-        # ----------------------------------------------------
+        # Constraint / fallback
         "modified": modified,
         "fallback_used": bool(
             fallback_used
         ),
-        "candidate_executed": bool(
-            candidate_executed
-        ),
-        "execution_allowed": bool(
-            candidate_executed
-        ),
 
-        # ----------------------------------------------------
         # Action difference
-        # ----------------------------------------------------
         "max_action_delta": safe_float(
             np.max(action_delta)
         ),
@@ -1132,52 +907,13 @@ def build_governance_record(
             np.mean(action_delta)
         ),
 
-        # ----------------------------------------------------
         # Actions
-        # ----------------------------------------------------
         "proposed_action": proposed_action.copy(),
 
         "executed_action": executed_action.copy(),
 
-        # ----------------------------------------------------
-        # Environment telemetry
-        # ----------------------------------------------------
+        # Outcome telemetry
         "telemetry": telemetry,
-
-        # ----------------------------------------------------
-        # Governance Trust
-        # ----------------------------------------------------
-        "governance_trust": governance_trust,
-
-        "environment_trust": environment_trust,
-
-        "reliability_score": reliability_score,
-
-        "policy_compliance": policy_compliance,
-
-        "behavioral_stability": behavioral_stability,
-
-        "outcome_score": outcome_score,
-
-        # ----------------------------------------------------
-        # Trust history
-        # ----------------------------------------------------
-        "trust_history_length": history_length,
-
-        "action_history_length": action_history_length,
-
-        "risk_history_length": risk_history_length,
-
-        "policy_history_length": policy_history_length,
-
-        "outcome_history_length": outcome_history_length,
-
-        # ----------------------------------------------------
-        # Trust explanation
-        # ----------------------------------------------------
-        "trust_reasons": list(
-            trust_reasons
-        ),
     }
 
 
@@ -1200,29 +936,18 @@ def run_step(
           ↓
         SAC
           ↓
-        Candidate Action
+        Proposed Action
           ↓
-        Governance.evaluate()
+        Governance
+          ├── ALLOW
+          ├── CONSTRAIN
+          └── BLOCK
           ↓
-        +-----------+-------------+
-        |           |             |
-       ALLOW     CONSTRAIN       BLOCK
-        |           |             |
-        |           |             +--> Safe Fallback
-        |           |
-        |           +--> SafeEnvelope Action
-        |
-        +--------------------------+
-                   ↓
-          Actual Executed Action
-                   ↓
-          IRFEnvironment.step()
-                   ↓
-          Reward + Telemetry
-                   ↓
-          TrustEngine.post_execution_feedback()
-                   ↓
-                Next State
+        Executed Action
+          ↓
+        IRF Environment
+          ↓
+        Reward + Telemetry
     """
 
     # ========================================================
@@ -1270,7 +995,7 @@ def run_step(
     )
 
     # ========================================================
-    # 3. PRE-EXECUTION GOVERNANCE
+    # 3. Governance evaluation
     # ========================================================
 
     decision = evaluate_governance(
@@ -1280,13 +1005,12 @@ def run_step(
     )
 
     # ========================================================
-    # 4. Resolve actual executable action
+    # 4. Resolve executable action
     # ========================================================
 
     (
         executed_action,
         fallback_used,
-        candidate_executed,
     ) = resolve_executed_action(
         decision=decision,
         proposed_action=proposed_action,
@@ -1300,24 +1024,7 @@ def run_step(
     )
 
     # ========================================================
-    # 5. Execute ACTUAL action in IRF environment
-    # ========================================================
-    #
-    # IMPORTANT:
-    #
-    # The environment sees ONLY executed_action.
-    #
-    # For BLOCK:
-    #     proposed_action != executed_action
-    #     candidate_executed = False
-    #     fallback_used = True
-    #
-    # For ALLOW:
-    #     candidate_executed = True
-    #
-    # For CONSTRAIN:
-    #     candidate_executed = True
-    #     decision.action is the actual governed action.
+    # 5. Execute actual IRF environment step
     # ========================================================
 
     (
@@ -1366,7 +1073,7 @@ def run_step(
         )
 
     # ========================================================
-    # 7. POST-ACTION TELEMETRY
+    # 7. Post-action telemetry
     # ========================================================
 
     telemetry = get_telemetry(
@@ -1375,165 +1082,7 @@ def run_step(
     )
 
     # ========================================================
-    # 8. POST-EXECUTION TRUST FEEDBACK
-    # ========================================================
-    #
-    # EXACT H5-C SEMANTICS
-    #
-    # TrustEngine receives the ACTUAL executed action.
-    #
-    # It does not receive the candidate action when BLOCK occurs.
-    #
-    # One environment execution -> one post_execution_feedback()
-    # call -> one trust update -> one action/risk/policy/outcome
-    # history entry.
-    # ========================================================
-
-    trust_assessment = governance.update_trust(
-        reward=safe_float(
-            reward
-        ),
-        environment_trust=telemetry.get(
-            "trust",
-            None,
-        ),
-        action=executed_action,
-        decision=decision,
-        telemetry=info,
-    )
-
-    # ========================================================
-    # 9. Normalize Trust state
-    # ========================================================
-    #
-    # governance.update_trust() returns a TrustAssessment.
-    # get_trust_state() returns the serializable dictionary
-    # needed by the dashboard record.
-    #
-    # Keep these two representations separate.
-    # ========================================================
-
-    trust_state = get_governance_trust_state(
-        governance
-    )
-
-    if not isinstance(
-        trust_state,
-        dict,
-    ):
-        trust_state = {}
-
-    # --------------------------------------------------------
-    # Optional defensive extraction from TrustAssessment
-    # --------------------------------------------------------
-    #
-    # If a future GovernanceEngine implementation returns an
-    # assessment containing newer fields, preserve the main
-    # trust score without changing the history semantics.
-    # --------------------------------------------------------
-
-    if trust_assessment is not None:
-
-        assessment_trust = getattr(
-            trust_assessment,
-            "trust_score",
-            None,
-        )
-
-        if (
-            "trust_score" not in trust_state
-            and assessment_trust is not None
-        ):
-            trust_state["trust_score"] = safe_float(
-                assessment_trust
-            )
-
-        assessment_environment_trust = getattr(
-            trust_assessment,
-            "environment_trust",
-            None,
-        )
-
-        if (
-            "environment_trust" not in trust_state
-            and assessment_environment_trust is not None
-        ):
-            trust_state["environment_trust"] = safe_float(
-                assessment_environment_trust
-            )
-
-        assessment_reliability = getattr(
-            trust_assessment,
-            "reliability_score",
-            None,
-        )
-
-        if (
-            "reliability_score" not in trust_state
-            and assessment_reliability is not None
-        ):
-            trust_state["reliability_score"] = safe_float(
-                assessment_reliability
-            )
-
-        assessment_policy_compliance = getattr(
-            trust_assessment,
-            "policy_compliance",
-            None,
-        )
-
-        if (
-            "policy_compliance" not in trust_state
-            and assessment_policy_compliance is not None
-        ):
-            trust_state["policy_compliance"] = safe_float(
-                assessment_policy_compliance
-            )
-
-        assessment_behavioral_stability = getattr(
-            trust_assessment,
-            "behavioral_stability",
-            None,
-        )
-
-        if (
-            "behavioral_stability" not in trust_state
-            and assessment_behavioral_stability is not None
-        ):
-            trust_state["behavioral_stability"] = safe_float(
-                assessment_behavioral_stability
-            )
-
-        assessment_outcome = getattr(
-            trust_assessment,
-            "outcome_score",
-            None,
-        )
-
-        if (
-            "outcome_score" not in trust_state
-            and assessment_outcome is not None
-        ):
-            trust_state["outcome_score"] = safe_float(
-                assessment_outcome
-            )
-
-        assessment_reasons = getattr(
-            trust_assessment,
-            "reasons",
-            None,
-        )
-
-        if (
-            "reasons" not in trust_state
-            and assessment_reasons is not None
-        ):
-            trust_state["reasons"] = list(
-                assessment_reasons
-            )
-
-    # ========================================================
-    # 10. Governance / action record
+    # 8. Governance / action record
     # ========================================================
 
     record = build_governance_record(
@@ -1544,13 +1093,11 @@ def run_step(
         telemetry=telemetry,
         done=done,
         fallback_used=fallback_used,
-        candidate_executed=candidate_executed,
         env=env,
-        trust_state=trust_state,
     )
 
     # ========================================================
-    # 11. Return
+    # 9. Return
     # ========================================================
 
     return (
@@ -1577,16 +1124,16 @@ def create_live_session(
     Returns
     -------
     env
-        IRF environment.
+        IRF environment
 
     agent
-        Loaded SAC agent.
+        Loaded SAC agent
 
     governance
-        GovernanceEngine with TrustEngine integration.
+        GovernanceEngine
 
     state
-        Initial environment state.
+        Initial environment state
     """
 
     # --------------------------------------------------------
@@ -1670,7 +1217,8 @@ def run_episode(
     """
     Run a complete governed SAC episode.
 
-    This helper does not modify SAC weights.
+    This helper is useful for research testing and does not
+    modify SAC weights.
     """
 
     (
@@ -1723,37 +1271,13 @@ def summarize_records(
             "steps": 0,
             "total_reward": 0.0,
             "mean_reward": 0.0,
-
             "allow_count": 0,
             "constrain_count": 0,
             "block_count": 0,
-
-            "candidate_execution_count": 0,
             "fallback_count": 0,
-
-            "modified_count": 0,
-
             "mean_risk": 0.0,
             "mean_trust": 0.0,
-
-            "mean_governance_trust": 0.0,
-            "final_governance_trust": 0.0,
-
-            "mean_environment_trust": 0.0,
-            "final_environment_trust": 0.0,
-
-            "final_outcome_score": 0.0,
-            "outcome_history_length": 0,
-
-            "trust_history_length": 0,
-            "action_history_length": 0,
-            "risk_history_length": 0,
-            "policy_history_length": 0,
         }
-
-    # --------------------------------------------------------
-    # Rewards
-    # --------------------------------------------------------
 
     rewards = np.asarray(
         [
@@ -1766,10 +1290,6 @@ def summarize_records(
         dtype=np.float64,
     )
 
-    # --------------------------------------------------------
-    # Risk
-    # --------------------------------------------------------
-
     risks = np.asarray(
         [
             record.get(
@@ -1780,10 +1300,6 @@ def summarize_records(
         ],
         dtype=np.float64,
     )
-
-    # --------------------------------------------------------
-    # Pre-execution trust
-    # --------------------------------------------------------
 
     trusts = np.asarray(
         [
@@ -1796,55 +1312,6 @@ def summarize_records(
         dtype=np.float64,
     )
 
-    # --------------------------------------------------------
-    # Governance trust
-    # --------------------------------------------------------
-
-    governance_trusts = np.asarray(
-        [
-            record.get(
-                "governance_trust",
-                0.0,
-            )
-            for record in records
-        ],
-        dtype=np.float64,
-    )
-
-    # --------------------------------------------------------
-    # Environment trust
-    # --------------------------------------------------------
-
-    environment_trusts = np.asarray(
-        [
-            record.get(
-                "environment_trust",
-                0.0,
-            )
-            for record in records
-        ],
-        dtype=np.float64,
-    )
-
-    # --------------------------------------------------------
-    # Outcome
-    # --------------------------------------------------------
-
-    outcome_scores = np.asarray(
-        [
-            record.get(
-                "outcome_score",
-                0.0,
-            )
-            for record in records
-        ],
-        dtype=np.float64,
-    )
-
-    # --------------------------------------------------------
-    # Status
-    # --------------------------------------------------------
-
     statuses = [
         str(
             record.get(
@@ -1855,25 +1322,9 @@ def summarize_records(
         for record in records
     ]
 
-    # --------------------------------------------------------
-    # Final record
-    # --------------------------------------------------------
-
-    final_record = records[-1]
-
-    # --------------------------------------------------------
-    # Summary
-    # --------------------------------------------------------
-
     return {
-        # ----------------------------------------------------
-        # Runtime
-        # ----------------------------------------------------
         "steps": len(records),
 
-        # ----------------------------------------------------
-        # Reward
-        # ----------------------------------------------------
         "total_reward": safe_float(
             np.sum(rewards)
         ),
@@ -1882,9 +1333,6 @@ def summarize_records(
             np.mean(rewards)
         ),
 
-        # ----------------------------------------------------
-        # Governance status
-        # ----------------------------------------------------
         "allow_count": statuses.count(
             "ALLOW"
         ),
@@ -1897,19 +1345,6 @@ def summarize_records(
             "BLOCK"
         ),
 
-        # ----------------------------------------------------
-        # Execution semantics
-        # ----------------------------------------------------
-        "candidate_execution_count": sum(
-            bool(
-                record.get(
-                    "candidate_executed",
-                    False,
-                )
-            )
-            for record in records
-        ),
-
         "fallback_count": sum(
             bool(
                 record.get(
@@ -1920,108 +1355,11 @@ def summarize_records(
             for record in records
         ),
 
-        "modified_count": sum(
-            bool(
-                record.get(
-                    "modified",
-                    False,
-                )
-            )
-            for record in records
-        ),
-
-        # ----------------------------------------------------
-        # Risk
-        # ----------------------------------------------------
         "mean_risk": safe_float(
             np.mean(risks)
         ),
 
-        # ----------------------------------------------------
-        # Pre-execution trust
-        # ----------------------------------------------------
         "mean_trust": safe_float(
             np.mean(trusts)
         ),
-
-        # ----------------------------------------------------
-        # Governance Trust
-        # ----------------------------------------------------
-        "mean_governance_trust": safe_float(
-            np.mean(
-                governance_trusts
-            )
-        ),
-
-        "final_governance_trust": safe_float(
-            final_record.get(
-                "governance_trust",
-                0.0,
-            )
-        ),
-
-        # ----------------------------------------------------
-        # Environment Trust
-        # ----------------------------------------------------
-        "mean_environment_trust": safe_float(
-            np.mean(
-                environment_trusts
-            )
-        ),
-
-        "final_environment_trust": safe_float(
-            final_record.get(
-                "environment_trust",
-                0.0,
-            )
-        ),
-
-        # ----------------------------------------------------
-        # Outcome
-        # ----------------------------------------------------
-        "final_outcome_score": safe_float(
-            final_record.get(
-                "outcome_score",
-                0.0,
-            )
-        ),
-
-        # ----------------------------------------------------
-        # Trust histories
-        # ----------------------------------------------------
-        "trust_history_length": int(
-            final_record.get(
-                "trust_history_length",
-                0,
-            )
-        ),
-
-        "action_history_length": int(
-            final_record.get(
-                "action_history_length",
-                0,
-            )
-        ),
-
-        "risk_history_length": int(
-            final_record.get(
-                "risk_history_length",
-                0,
-            )
-        ),
-
-        "policy_history_length": int(
-            final_record.get(
-                "policy_history_length",
-                0,
-            )
-        ),
-
-        "outcome_history_length": int(
-            final_record.get(
-                "outcome_history_length",
-                0,
-            )
-        ),
     }
-

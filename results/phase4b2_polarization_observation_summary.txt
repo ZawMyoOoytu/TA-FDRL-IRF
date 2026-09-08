@@ -1,0 +1,106 @@
+==============================================================================
+TA-FDRL-IRF | PHASE-4B.2 POLARIZATION-AWARE OBSERVATION SAC
+==============================================================================
+
+EXPERIMENT PURPOSE
+Evaluate whether a freshly trained SAC controller can exploit polarization-aware observations under a polarization-aware PHY.
+This phase is an observation-awareness experiment, not direct polarization control.
+
+CONFIGURATION
+------------------------------------------------------------------------------
+Users                    : 20
+RIS elements             : 64
+Bandwidth                : 100000000 Hz
+Carrier frequency        : 28000000000 Hz
+Polarization PHY         : True
+Polarization observation : True
+Cross-polarization       : 0.15
+RIS optimization         : False
+State dimension          : 140
+Action dimension         : 40
+Training episodes        : 300
+Steps per episode        : 200
+
+BEST MODEL
+------------------------------------------------------------------------------
+Selection metric         : evaluation_per_step_reward
+Best episode             : 20
+Best evaluation value    : 4.26793626
+Checkpoint               : results\best_sac_irf_phase4b2_polarization_observation\sac_phase4b2_polarization_observation.pt
+
+TRAINING SUMMARY
+------------------------------------------------------------------------------
+First-10 avg reward      : 741.24244741
+Last-10 avg reward       : 757.36469173
+Best-10 eval avg         : 3.53221304
+Total updates            : 59745
+Elapsed seconds          : 1189.3783
+
+RANDOM BASELINE
+------------------------------------------------------------------------------
+Reward                   : 709.83068533
+Per-step reward          : 3.54915343
+SE                       : 0.83618044
+EE                       : 8.33994301e+06
+Final trust              : 0.55054580
+Mean PQI                 : 0.84155677
+Mean XPI                 : 0.15844323
+
+FINAL BEST-CHECKPOINT SAC
+------------------------------------------------------------------------------
+Reward                   : 849.54029822
+Per-step reward          : 4.24770149
+SE                       : 0.89584838
+EE                       : 1.11262212e+07
+Initial trust            : 0.84946069
+Final trust              : 0.62031831
+Trust change             : -0.22914238
+Mean behavior score      : 0.58308414
+Mean queue               : 0.54354981
+Mean power               : 0.40866653
+Interference ratio       : 0.95000000
+Mean PQI                 : 0.88583959
+Mean XPI                 : 0.11416041
+
+CONTROLLED SIX-SEED EVALUATION
+------------------------------------------------------------------------------
+Seed    42 | Reward 858.20197063 | SE 0.80214137 | EE 1.24071740e+07 | Trust 0.60291057 | PQI 0.90792537 | XPI 0.09207463
+Seed   123 | Reward 836.16467208 | SE 0.84505955 | EE 1.13437981e+07 | Trust 0.62012620 | PQI 0.89344251 | XPI 0.10655749
+Seed  2026 | Reward 763.07069514 | SE 0.82791534 | EE 9.74817182e+06 | Trust 0.60447671 | PQI 0.92111571 | XPI 0.07888429
+Seed  4096 | Reward 825.36831676 | SE 0.89606468 | EE 1.04825578e+07 | Trust 0.64046921 | PQI 0.93838093 | XPI 0.06161907
+Seed  7777 | Reward 1015.03802193 | SE 1.00761531 | EE 1.39317008e+07 | Trust 0.65256612 | PQI 0.91539566 | XPI 0.08460434
+Seed  9999 | Reward 898.01808163 | SE 0.97235515 | EE 1.14806509e+07 | Trust 0.61533798 | PQI 0.86256508 | XPI 0.13743492
+
+CONTROLLED AGGREGATE
+------------------------------------------------------------------------------
+Mean reward              : 865.97695970
+Mean step reward         : 4.32988480
+Mean SE                  : 0.89185857
+Mean EE                  : 1.15656755e+07
+Mean final trust         : 0.62264780
+Mean PQI                 : 0.90647088
+Mean XPI                 : 0.09352912
+
+REPRODUCIBILITY
+------------------------------------------------------------------------------
+State max error          : 0.000000000000e+00
+Action max error         : 0.000000000000e+00
+Status                   : PASSED
+
+COMPARISON WITH RANDOM
+------------------------------------------------------------------------------
+Random step reward       : 3.54915343
+Best SAC step reward     : 4.24770149
+SAC improvement          : 19.6821%
+
+SCIENTIFIC INTERPRETATION
+------------------------------------------------------------------------------
+Phase-4B.2 introduces PQI/XPI into the observation state while keeping the action space unchanged at 40 dimensions.
+
+The 140D state represents 20 users × [SINR, interference, queue, power, trust, PQI, XPI].
+
+RIS optimization remains disabled. Therefore this experiment does not demonstrate polarization control, optimal RIS phase optimization, joint RIS/polarization optimization, or hardware polarization control.
+
+The scientifically decisive comparison is between appropriately trained controllers under matched experimental conditions. Controlled fixed-action B2-B/B2-C comparisons alone cannot show a benefit from additional observations because the externally supplied actions remain identical.
+
+END OF PHASE-4B.2 SAC TRAINING REPORT
