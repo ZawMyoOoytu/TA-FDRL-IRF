@@ -1,66 +1,147 @@
+
 """
 TA-FDRL-IRF
-H5-B Governance Operating-Region Benchmark
+Governance Operating Region Benchmark
+H5-B — Final Corrected Research-Grade Version
 
 Purpose
 -------
-Evaluate governance execution behavior across controlled operating regions:
+Measure the REAL numerical operating regions of the governance layer
+using:
 
-    ALLOW
-    CONSTRAIN
-    BLOCK
+    - Real TrustEngine
+    - Real PolicyEngine
+    - Real RiskEngine
+    - Real SafeEnvelope
+    - Real GovernanceEngine
 
-This benchmark does NOT modify:
-    - SAC architecture
-    - IRF environment
-    - reward weights
-    - Phase-4A scientific results
-    - trained checkpoint
+This benchmark does NOT inject artificial RiskAssessment objects.
 
-It evaluates the existing governance layer under controlled scenarios.
+The benchmark controls the INITIAL governance trust state for every
+operating point so that:
 
-Important
----------
-H5-B is an execution-level governance benchmark.
+    controlled trust
+        ==
+    initial governance trust
+        ==
+    effective trust used by RiskEngine
 
-Trust, action, queue, and interference conditions are deliberately
-controlled to exercise specific governance operating regions.
+This is required because GovernanceEngine.evaluate() obtains governance
+trust from TrustEngine before passing it to RiskEngine.
 
-The controlled telemetry is passed directly to the GovernanceEngine.
-The resulting governed action is then executed inside the real
-TA-FDRL-IRF environment.
+Therefore every operating point receives a FRESH TrustEngine with:
 
-Therefore:
+    TrustEngineConfig(initial_trust=controlled_trust)
 
-    Controlled Scenario
-            ↓
-    Governance Evaluation
-            ↓
-    Executed Action
-            ↓
-    IRF Environment
-            ↓
-    Reward / Environment Response
+This preserves the real architecture while making the operating-point
+experiment scientifically controlled.
 
-This benchmark is NOT a physical-world 6G measurement.
+Risk equation
+-------------
+
+    risk =
+        0.45 * trust_risk
+        + 0.35 * action_anomaly
+        + 0.20 * telemetry_risk
+
+where:
+
+    trust_risk = 1 - trust
+
+    action_anomaly =
+        clip((abs(action) - 0.70) / 0.30, 0, 1)
+
+    telemetry_risk =
+        max(
+            mean(clip(queue, 0, 1)),
+            mean(clip(abs(interference), 0, 1))
+        )
+
+Risk levels
+-----------
+
+    LOW       : risk < 0.60
+    MEDIUM    : 0.60 <= risk < 0.80
+    HIGH      : risk >= 0.80
+
+Governance precedence
+---------------------
+
+    1. POLICY_VIOLATION
+        -> BLOCK
+
+    2. HIGH_RISK
+        -> BLOCK
+
+    3. TRUST_BELOW_MINIMUM
+        -> BLOCK
+
+    4. MEDIUM_RISK_SAFE_ENVELOPE
+        -> CONSTRAIN
+
+    5. GOVERNANCE_APPROVED
+        -> ALLOW
+
+Important validation principle
+------------------------------
+
+Governance status is NOT determined by risk level alone.
+
+For example:
+
+    LOW risk + policy violation
+        -> BLOCK
+
+    LOW risk + trust < 0.60
+        -> BLOCK
+
+    MEDIUM risk + policy compliant + trust >= 0.60
+        -> CONSTRAIN
+
+    HIGH risk + policy compliant
+        -> BLOCK
+
+Therefore validation functions explicitly respect governance
+precedence rather than assuming:
+
+    risk level == governance status
+
+Scientific purpose
+------------------
+
+This benchmark answers:
+
+    "Under the current real governance equations and thresholds,
+     what combinations of trust, action magnitude, queue pressure,
+     and interference pressure produce ALLOW, CONSTRAIN, and BLOCK?"
+
+This is a governance calibration / operating-region experiment.
+
+It does NOT:
+
+    - modify GovernanceEngine
+    - modify RiskEngine
+    - modify PolicyEngine
+    - modify TrustEngine
+    - modify SafeEnvelope
+    - modify SAC
+    - modify IRFEnvironment
+    - train SAC
+    - perform post-execution trust updates
+    - represent physical-world 6G measurements
 """
 
 
 from __future__ import annotations
 
-import json
-import random
+
+# ============================================================================
+# PROJECT ROOT
+# ============================================================================
+
 import sys
 from pathlib import Path
-from statistics import mean
 
-import numpy as np
-import torch
-
-
-# ============================================================================
-# PROJECT ROOT BOOTSTRAP
-# ============================================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -69,1651 +150,2260 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 # ============================================================================
-# PROJECT IMPORTS
+# IMPORTS
 # ============================================================================
 
-from agents.sac_agent import SACAgent
-from environment.irf_env import IRFEnvironment
+from dataclasses import dataclass
+
+import numpy as np
+
 from trust.governance import GovernanceEngine
+from trust.trust_engine import (
+    TrustEngine,
+    TrustEngineConfig,
+)
 
 
 # ============================================================================
-# BENCHMARK CONFIGURATION
+# CONSTANTS
 # ============================================================================
 
-CHECKPOINT = (
-    PROJECT_ROOT
-    / "results"
-    / "best_sac_irf_phase2.pt"
-)
-
-JSON_RESULT = (
-    PROJECT_ROOT
-    / "results"
-    / "governance_operating_region_benchmark.json"
-)
-
-TEXT_RESULT = (
-    PROJECT_ROOT
-    / "results"
-    / "governance_operating_region_benchmark.txt"
-)
-
-
-# ---------------------------------------------------------------------
-# Model / environment dimensions
-# ---------------------------------------------------------------------
-
-STATE_DIM = 100
 ACTION_DIM = 40
-
 NUM_USERS = 20
-STATE_FEATURES_PER_USER = 5
 
-MAX_STEPS = 200
+# ---------------------------------------------------------------------------
+# Governance thresholds mirrored from the REAL RiskConfig.
+#
+# These constants are used only for independent validation/reporting.
+# They do not replace the actual GovernanceEngine configuration.
+# ---------------------------------------------------------------------------
+
+RISK_LOW_THRESHOLD = 0.60
+RISK_HIGH_THRESHOLD = 0.80
+MINIMUM_TRUST = 0.60
 
 
-# ---------------------------------------------------------------------
-# Controlled benchmark seeds
-# ---------------------------------------------------------------------
+# ============================================================================
+# CONTROLLED OPERATING GRID
+# ============================================================================
 
-SEEDS = [
-    11,
-    22,
-    33,
-    44,
-    55,
+TRUST_LEVELS = [
+    1.00,
+    0.90,
+    0.80,
+    0.70,
+    0.60,
+    0.50,
+    0.40,
+    0.30,
+    0.20,
+    0.10,
+]
+
+
+ACTION_LEVELS = [
+    0.00,
+    0.50,
+    0.70,
+    0.80,
+    0.90,
+    1.00,
+]
+
+
+TELEMETRY_LEVELS = [
+    0.00,
+    0.40,
+    0.60,
+    0.80,
+    0.90,
+    1.00,
 ]
 
 
 # ============================================================================
-# CONTROLLED GOVERNANCE SCENARIOS
+# RESULT DATA STRUCTURE
 # ============================================================================
 
-SCENARIOS = [
+@dataclass
+class BenchmarkResult:
+    """
+    One controlled governance operating-point observation.
+    """
 
-    # -----------------------------------------------------------------
-    # Scenario 1
-    # -----------------------------------------------------------------
-    {
-        "name": "SAFE_ALLOW",
+    # Controlled input trust.
+    trust: float
 
-        # Governance trust
-        "trust": 0.90,
+    # Actual governance trust returned by TrustEngine.
+    governance_trust: float
 
-        # 40-dimensional action baseline
-        "action_value": 0.00,
+    # Environment/domain trust returned by TrustEngine.
+    environment_trust: float
 
-        # Controlled telemetry
-        "queue": 0.10,
-        "interference": 0.10,
+    # Controlled action magnitude.
+    action_magnitude: float
 
-        # Expected governance decision
-        "expected_status": "ALLOW",
-    },
+    # Controlled queue pressure.
+    queue_pressure: float
 
+    # Controlled interference pressure.
+    interference_pressure: float
 
-    # -----------------------------------------------------------------
-    # Scenario 2
-    # -----------------------------------------------------------------
-    {
-        "name": "MEDIUM_RISK_CONSTRAIN",
+    # Actual RiskEngine output.
+    risk_score: float
 
-        # Exactly at minimum trust boundary.
-        # Risk is raised through controlled telemetry and action anomaly.
-        "trust": 0.60,
+    # Independently calculated theoretical risk.
+    expected_risk: float
 
-        # High proposed action magnitude.
-        # Safe Envelope should reduce this.
-        "action_value": 0.89,
+    # Actual RiskEngine classification.
+    risk_level: str
 
-        # Deliberately controlled high telemetry pressure.
-        "queue": 1.00,
-        "interference": 1.00,
+    # Actual GovernanceEngine decision.
+    governance_status: str
 
-        # Expected governance decision
-        "expected_status": "CONSTRAIN",
-    },
+    # Actual GovernanceEngine reason.
+    governance_reason: str
 
+    # Whether SafeEnvelope modified the action.
+    action_modified: bool
 
-    # -----------------------------------------------------------------
-    # Scenario 3
-    # -----------------------------------------------------------------
-    {
-        "name": "HIGH_RISK_BLOCK",
+    # Actual PolicyEngine decision.
+    policy_allowed: bool
 
-        # Low trust contribution
-        "trust": 0.15,
-
-        # High action anomaly
-        "action_value": 0.89,
-
-        # High telemetry pressure
-        "queue": 1.00,
-        "interference": 1.00,
-
-        # Expected governance decision
-        "expected_status": "BLOCK",
-    },
-
-
-    # -----------------------------------------------------------------
-    # Scenario 4
-    # -----------------------------------------------------------------
-    {
-        "name": "LOW_TRUST_BLOCK",
-
-        # Explicit trust violation
-        "trust": 0.30,
-
-        # Otherwise benign action
-        "action_value": 0.00,
-
-        # Low telemetry pressure
-        "queue": 0.10,
-        "interference": 0.10,
-
-        # Expected governance decision
-        "expected_status": "BLOCK",
-    },
-
-
-    # -----------------------------------------------------------------
-    # Scenario 5
-    # -----------------------------------------------------------------
-    {
-        "name": "POLICY_VIOLATION_BLOCK",
-
-        # High trust alone should not bypass policy enforcement.
-        "trust": 0.90,
-
-        # Normal baseline action
-        "action_value": 0.00,
-
-        # Low telemetry pressure
-        "queue": 0.10,
-        "interference": 0.10,
-
-        # Explicit policy violation
-        "power_override": 0.95,
-
-        # Expected governance decision
-        "expected_status": "BLOCK",
-    },
-]
+    # Absolute numerical difference between actual and expected risk.
+    formula_error: float
 
 
 # ============================================================================
-# RANDOMNESS CONTROL
+# ACTION CONSTRUCTION
 # ============================================================================
 
-def set_seed(seed: int) -> None:
+def make_action(
+    magnitude: float,
+) -> np.ndarray:
     """
-    Set deterministic RNG state where supported.
-    """
+    Construct a 40-dimensional controlled action.
 
-    random.seed(seed)
+    All dimensions receive the same absolute magnitude.
 
-    np.random.seed(seed)
+    PolicyEngine boundary:
 
-    torch.manual_seed(seed)
+        dimensions [0:20]
+            -> bandwidth
 
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
+        dimensions [20:40]
+            -> normalized power
 
+    Current PolicyEngine allows:
 
-# ============================================================================
-# ENVIRONMENT
-# ============================================================================
+        normalized power <= 0.90
 
-def make_environment(seed: int) -> IRFEnvironment:
-    """
-    Create an IRF environment and attempt to seed it.
-    """
+    Therefore:
 
-    env = IRFEnvironment()
+        magnitude <= 0.90
+            -> policy compliant
 
-    try:
-        env.seed(seed)
-    except Exception:
-        pass
-
-    return env
-
-
-def reset_environment(env, seed: int):
-    """
-    Support both modern and legacy reset APIs.
+        magnitude = 1.00
+            -> policy violation
+            -> BLOCK through POLICY_VIOLATION precedence
     """
 
-    try:
-
-        result = env.reset(
-            seed=seed
-        )
-
-    except TypeError:
-
-        try:
-            env.seed(seed)
-        except Exception:
-            pass
-
-        result = env.reset()
-
-    # Gymnasium-style reset:
-    # (observation, info)
-
-    if isinstance(result, tuple):
-        return result[0]
-
-    return result
-
-
-# ============================================================================
-# SAC CHECKPOINT
-# ============================================================================
-
-def load_agent() -> SACAgent:
-    """
-    Load the existing Phase-2 SAC checkpoint.
-
-    The checkpoint itself is not modified.
-    """
-
-    agent = SACAgent(
-        state_dim=STATE_DIM,
-        action_dim=ACTION_DIM,
-    )
-
-    agent.load(
-        str(CHECKPOINT)
-    )
-
-    return agent
-
-
-# ============================================================================
-# OPTIONAL ENVIRONMENT TELEMETRY EXTRACTION
-# ============================================================================
-
-def telemetry_from_state(
-    state: np.ndarray,
-) -> dict:
-    """
-    Extract queue and interference from the IRF state.
-
-    This function is retained for diagnostic/reference purposes.
-
-    H5-B controlled scenarios intentionally use controlled telemetry
-    instead of this environment-derived telemetry when evaluating
-    governance operating regions.
-    """
-
-    state_array = np.asarray(
-        state,
+    return np.full(
+        ACTION_DIM,
+        float(magnitude),
         dtype=np.float32,
     )
 
-    if state_array.size != STATE_DIM:
-        return {}
-
-    user_matrix = state_array.reshape(
-        NUM_USERS,
-        STATE_FEATURES_PER_USER,
-    )
-
-    return {
-        "queue": user_matrix[:, 2],
-        "interference": user_matrix[:, 1],
-    }
-
 
 # ============================================================================
-# CONTROLLED TELEMETRY
+# TELEMETRY CONSTRUCTION
 # ============================================================================
 
-def build_controlled_telemetry(
-    scenario: dict,
+def make_telemetry(
+    queue_pressure: float,
+    interference_pressure: float,
 ) -> dict:
     """
-    Build deterministic telemetry corresponding to the selected
-    governance operating region.
+    Construct deterministic telemetry compatible with RiskEngine.
 
-    This is the critical H5-B correction.
+    RiskEngine consumes:
 
-    The scenario's queue/interference values are passed directly
-    to the RiskEngine through GovernanceEngine.
+        telemetry["queue"]
+        telemetry["interference"]
     """
 
-    queue_value = float(
-        scenario["queue"]
+    queue = np.full(
+        NUM_USERS,
+        float(queue_pressure),
+        dtype=np.float32,
     )
 
-    interference_value = float(
-        scenario["interference"]
+    interference = np.full(
+        NUM_USERS,
+        float(interference_pressure),
+        dtype=np.float32,
     )
 
     return {
-        "queue": np.full(
-            NUM_USERS,
-            queue_value,
-            dtype=np.float32,
-        ),
-
-        "interference": np.full(
-            NUM_USERS,
-            interference_value,
-            dtype=np.float32,
-        ),
+        "queue": queue,
+        "interference": interference,
     }
 
 
 # ============================================================================
-# ENVIRONMENT STEP
+# GOVERNANCE ENGINE FACTORY
 # ============================================================================
 
-def step_environment(
-    env,
-    action,
-):
+def create_governance(
+    initial_trust: float,
+) -> GovernanceEngine:
     """
-    Support both Gymnasium 5-value and legacy 4-value step APIs.
+    Create a REAL GovernanceEngine with an isolated TrustEngine.
+
+    Each operating point receives a fresh TrustEngine.
+
+    This prevents cross-point state contamination.
+
+    No artificial RiskAssessment is injected.
     """
 
-    result = env.step(
-        action
+    trust_engine = TrustEngine(
+        TrustEngineConfig(
+            initial_trust=float(initial_trust),
+        )
     )
 
-    # Gymnasium:
-    #
-    # observation,
-    # reward,
-    # terminated,
-    # truncated,
-    # info
+    return GovernanceEngine(
+        trust_engine=trust_engine,
+    )
 
-    if len(result) == 5:
 
-        (
-            next_state,
-            reward,
-            terminated,
-            truncated,
-            info,
-        ) = result
+# ============================================================================
+# SINGLE OPERATING POINT
+# ============================================================================
 
-        done = bool(
-            terminated or truncated
+def evaluate_point(
+    trust: float,
+    action_magnitude: float,
+    queue_pressure: float,
+    interference_pressure: float,
+) -> BenchmarkResult:
+    """
+    Evaluate one completely isolated operating point.
+
+    A fresh GovernanceEngine and TrustEngine are created for every point.
+    """
+
+    # ------------------------------------------------------------------------
+    # Fresh governance state
+    # ------------------------------------------------------------------------
+
+    governance = create_governance(
+        initial_trust=trust,
+    )
+
+    # ------------------------------------------------------------------------
+    # Controlled inputs
+    # ------------------------------------------------------------------------
+
+    action = make_action(
+        action_magnitude,
+    )
+
+    telemetry = make_telemetry(
+        queue_pressure,
+        interference_pressure,
+    )
+
+    # ------------------------------------------------------------------------
+    # REAL GovernanceEngine evaluation
+    # ------------------------------------------------------------------------
+
+    decision = governance.evaluate(
+        action,
+        trust_score=trust,
+        telemetry=telemetry,
+    )
+
+    # ------------------------------------------------------------------------
+    # Extract actual TrustEngine state
+    # ------------------------------------------------------------------------
+
+    if decision.trust is not None:
+
+        governance_trust = float(
+            decision.trust.trust_score
         )
 
-    # Legacy Gym:
-    #
-    # observation,
-    # reward,
-    # done,
-    # info
-
-    elif len(result) == 4:
-
-        (
-            next_state,
-            reward,
-            done,
-            info,
-        ) = result
+        environment_trust = float(
+            decision.trust.environment_trust
+        )
 
     else:
 
-        raise RuntimeError(
-            "Unexpected environment step output length: "
-            f"{len(result)}"
+        governance_trust = float(
+            governance.trust_engine.trust_score
         )
 
-    if not isinstance(info, dict):
-        info = {}
+        environment_trust = float(
+            governance.trust_engine.environment_trust
+        )
 
-    return (
-        next_state,
-        float(reward),
-        bool(done),
-        info,
+    # ------------------------------------------------------------------------
+    # Actual RiskEngine output
+    # ------------------------------------------------------------------------
+
+    risk_score = float(
+        decision.risk.risk_score
+    )
+
+    risk_level = str(
+        decision.risk.risk_level
+    )
+
+    # ------------------------------------------------------------------------
+    # Independent theoretical calculation
+    # ------------------------------------------------------------------------
+
+    # Use the ACTUAL governance trust consumed by RiskEngine.
+    #
+    # In this controlled experiment:
+    #
+    #     governance_trust == trust
+    #
+    # The explicit use of governance_trust here makes the validation
+    # architecture transparent and prevents future silent mismatches.
+
+    expected_risk = theoretical_risk(
+        trust=governance_trust,
+        action_magnitude=action_magnitude,
+        queue_pressure=queue_pressure,
+        interference_pressure=interference_pressure,
+    )
+
+    formula_error = abs(
+        risk_score - expected_risk
+    )
+
+    # ------------------------------------------------------------------------
+    # Return observation
+    # ------------------------------------------------------------------------
+
+    return BenchmarkResult(
+        trust=float(trust),
+
+        governance_trust=governance_trust,
+
+        environment_trust=environment_trust,
+
+        action_magnitude=float(
+            action_magnitude
+        ),
+
+        queue_pressure=float(
+            queue_pressure
+        ),
+
+        interference_pressure=float(
+            interference_pressure
+        ),
+
+        risk_score=risk_score,
+
+        expected_risk=expected_risk,
+
+        risk_level=risk_level,
+
+        governance_status=str(
+            decision.status
+        ),
+
+        governance_reason=str(
+            decision.reason
+        ),
+
+        action_modified=bool(
+            decision.modified
+        ),
+
+        policy_allowed=bool(
+            decision.policy.allowed
+        ),
+
+        formula_error=float(
+            formula_error
+        ),
     )
 
 
 # ============================================================================
-# CONTROLLED ACTION
+# THEORETICAL RISK EQUATION
 # ============================================================================
 
-def build_controlled_action(
-    scenario: dict,
-    proposed_action: np.ndarray,
-) -> np.ndarray:
+def theoretical_risk(
+    trust: float,
+    action_magnitude: float,
+    queue_pressure: float,
+    interference_pressure: float,
+) -> float:
     """
-    Construct the controlled action used to isolate a governance
-    operating region.
+    Independently reproduce the REAL RiskEngine numerical equation.
 
-    The SAC proposal is retained as an upstream controller signal,
-    but the benchmark deliberately replaces its values with
-    scenario-controlled values.
+    Equation:
 
-    This avoids retraining the controller or changing the scientific core.
+        trust_risk = 1 - trust
+
+        action_anomaly =
+            clip(
+                (abs(action) - 0.70) / 0.30,
+                0,
+                1
+            )
+
+        telemetry_risk =
+            max(queue, interference)
+
+        risk =
+            0.45 * trust_risk
+            + 0.35 * action_anomaly
+            + 0.20 * telemetry_risk
     """
 
-    action = np.asarray(
-        proposed_action,
-        dtype=np.float32,
-    ).copy()
+    # ------------------------------------------------------------------------
+    # Trust term
+    # ------------------------------------------------------------------------
 
-    # Start with the scenario-wide action magnitude.
-    action[:] = float(
-        scenario["action_value"]
+    trust_clipped = float(
+        np.clip(
+            trust,
+            0.0,
+            1.0,
+        )
     )
 
-    # Explicit policy violation for the policy test.
-    if "power_override" in scenario:
+    trust_risk = (
+        1.0 - trust_clipped
+    )
 
-        action[20:] = float(
-            scenario["power_override"]
+    # ------------------------------------------------------------------------
+    # Action anomaly term
+    # ------------------------------------------------------------------------
+
+    action_value = float(
+        np.clip(
+            abs(action_magnitude),
+            0.0,
+            1.0,
         )
+    )
 
-    return action
+    action_anomaly = float(
+        np.clip(
+            (
+                action_value - 0.70
+            )
+            / 0.30,
+            0.0,
+            1.0,
+        )
+    )
+
+    # ------------------------------------------------------------------------
+    # Telemetry term
+    # ------------------------------------------------------------------------
+
+    queue = float(
+        np.clip(
+            queue_pressure,
+            0.0,
+            1.0,
+        )
+    )
+
+    interference = float(
+        np.clip(
+            interference_pressure,
+            0.0,
+            1.0,
+        )
+    )
+
+    telemetry_risk = max(
+        queue,
+        interference,
+    )
+
+    # ------------------------------------------------------------------------
+    # Combined risk
+    # ------------------------------------------------------------------------
+
+    score = (
+        0.45 * trust_risk
+        + 0.35 * action_anomaly
+        + 0.20 * telemetry_risk
+    )
+
+    return float(
+        np.clip(
+            score,
+            0.0,
+            1.0,
+        )
+    )
 
 
 # ============================================================================
-# GOVERNANCE STATUS VALIDATION
+# THEORETICAL RISK LEVEL
 # ============================================================================
 
-def validate_status(
-    actual_status: str,
-    expected_status: str,
+def theoretical_risk_level(
+    risk_score: float,
+) -> str:
+    """
+    Determine expected risk level from the configured thresholds.
+    """
+
+    risk = float(
+        np.clip(
+            risk_score,
+            0.0,
+            1.0,
+        )
+    )
+
+    if risk >= RISK_HIGH_THRESHOLD:
+        return "HIGH"
+
+    if risk >= RISK_LOW_THRESHOLD:
+        return "MEDIUM"
+
+    return "LOW"
+
+
+# ============================================================================
+# FORMULA VALIDATION
+# ============================================================================
+
+def validate_formula(
+    result: BenchmarkResult,
+    tolerance: float = 1e-6,
 ) -> bool:
     """
-    Return True when governance produces the expected branch.
+    Verify actual RiskEngine output against the independent equation.
     """
 
-    return actual_status == expected_status
+    return bool(
+        np.isclose(
+            result.risk_score,
+            result.expected_risk,
+            atol=tolerance,
+            rtol=0.0,
+        )
+    )
 
 
 # ============================================================================
-# SCENARIO BENCHMARK
+# EXTREME OPERATING POINTS
 # ============================================================================
 
-def run_scenario(
-    agent,
-    scenario: dict,
-    seed: int,
-) -> dict:
+def evaluate_extreme_cases() -> bool:
     """
-    Execute one controlled governance scenario.
+    Evaluate analytically important operating boundaries.
 
-    Each scenario runs for up to MAX_STEPS inside the actual IRF
-    environment.
+    These cases validate:
+
+        - ideal operation
+        - low-trust blocking
+        - policy precedence
+        - telemetry contribution
+        - high-risk blocking
+
+    Returns
+    -------
+    bool
+        True when all numerical and trust-initialization checks pass.
     """
 
-    set_seed(
-        seed
+    cases = [
+        (
+            "IDEAL",
+            1.00,
+            0.00,
+            0.00,
+            0.00,
+        ),
+        (
+            "LOW_TRUST_ONLY",
+            0.30,
+            0.00,
+            0.00,
+            0.00,
+        ),
+        (
+            "MAX_ACTION_ONLY",
+            1.00,
+            1.00,
+            0.00,
+            0.00,
+        ),
+        (
+            "MAX_TELEMETRY_ONLY",
+            1.00,
+            0.00,
+            1.00,
+            1.00,
+        ),
+        (
+            "ALL_MAX",
+            0.00,
+            0.90,
+            1.00,
+            1.00,
+        ),
+    ]
+
+    print()
+    print("=" * 78)
+    print("EXTREME OPERATING POINTS")
+    print("=" * 78)
+
+    all_passed = True
+
+    for (
+        name,
+        trust,
+        action_magnitude,
+        queue_pressure,
+        interference_pressure,
+    ) in cases:
+
+        result = evaluate_point(
+            trust=trust,
+            action_magnitude=action_magnitude,
+            queue_pressure=queue_pressure,
+            interference_pressure=interference_pressure,
+        )
+
+        formula_pass = validate_formula(
+            result
+        )
+
+        governance_trust_match = np.isclose(
+            result.governance_trust,
+            trust,
+            atol=1e-6,
+            rtol=0.0,
+        )
+
+        if not formula_pass:
+            all_passed = False
+
+        if not governance_trust_match:
+            all_passed = False
+
+        print()
+        print(name)
+
+        print(
+            f"  Environment trust : "
+            f"{result.environment_trust:.6f}"
+        )
+
+        print(
+            f"  Governance trust  : "
+            f"{result.governance_trust:.6f}"
+        )
+
+        print(
+            f"  Action magnitude  : "
+            f"{action_magnitude:.2f}"
+        )
+
+        print(
+            f"  Queue             : "
+            f"{queue_pressure:.2f}"
+        )
+
+        print(
+            f"  Interference      : "
+            f"{interference_pressure:.2f}"
+        )
+
+        print(
+            f"  Expected risk     : "
+            f"{result.expected_risk:.6f}"
+        )
+
+        print(
+            f"  Actual risk       : "
+            f"{result.risk_score:.6f}"
+        )
+
+        print(
+            f"  Risk level        : "
+            f"{result.risk_level}"
+        )
+
+        print(
+            f"  Governance        : "
+            f"{result.governance_status}"
+        )
+
+        print(
+            f"  Reason            : "
+            f"{result.governance_reason}"
+        )
+
+        print(
+            f"  Policy allowed    : "
+            f"{result.policy_allowed}"
+        )
+
+        print(
+            f"  Formula validation: "
+            f"{'PASS' if formula_pass else 'FAIL'}"
+        )
+
+        print(
+            f"  Trust initialization: "
+            f"{'PASS' if governance_trust_match else 'FAIL'}"
+        )
+
+    return all_passed
+
+
+# ============================================================================
+# FULL CONTROLLED BENCHMARK
+# ============================================================================
+
+def run_benchmark() -> list[BenchmarkResult]:
+    """
+    Execute the complete controlled operating grid.
+
+    Grid size:
+
+        10 trust levels
+        × 6 action levels
+        × 6 queue levels
+        × 6 interference levels
+
+        = 2160 operating points
+    """
+
+    results: list[BenchmarkResult] = []
+
+    total_points = (
+        len(TRUST_LEVELS)
+        * len(ACTION_LEVELS)
+        * len(TELEMETRY_LEVELS)
+        * len(TELEMETRY_LEVELS)
     )
 
-    env = make_environment(
-        seed
+    completed = 0
+
+    print(
+        f"Total operating points: "
+        f"{total_points}"
     )
 
-    state = reset_environment(
-        env,
-        seed,
+    print()
+
+    for trust in TRUST_LEVELS:
+
+        for action_magnitude in ACTION_LEVELS:
+
+            for queue_pressure in TELEMETRY_LEVELS:
+
+                for interference_pressure in TELEMETRY_LEVELS:
+
+                    result = evaluate_point(
+                        trust=trust,
+                        action_magnitude=action_magnitude,
+                        queue_pressure=queue_pressure,
+                        interference_pressure=interference_pressure,
+                    )
+
+                    results.append(
+                        result
+                    )
+
+                    completed += 1
+
+    print(
+        f"Completed operating points: "
+        f"{completed}"
     )
 
-    # One governance engine per scenario run.
-    governance = GovernanceEngine()
+    return results
 
-    # -----------------------------------------------------------------
-    # Aggregates
-    # -----------------------------------------------------------------
 
-    total_reward = 0.0
+# ============================================================================
+# RISK FORMULA SUMMARY
+# ============================================================================
 
-    steps = 0
+def summarize_formula_validation(
+    results: list[BenchmarkResult],
+) -> bool:
+    """
+    Validate all numerical RiskEngine outputs.
+    """
 
-    allow_count = 0
-    constrain_count = 0
-    block_count = 0
+    passed = 0
+    failed = 0
+    max_error = 0.0
 
-    modified_count = 0
+    for result in results:
 
-    action_deltas = []
-
-    risks = []
-
-    trusts = []
-
-    branch_mismatch_count = 0
-
-    # -----------------------------------------------------------------
-    # Store reason frequencies for scientific diagnostics.
-    # -----------------------------------------------------------------
-
-    reason_counts = {}
-
-    # -----------------------------------------------------------------
-    # Step loop
-    # -----------------------------------------------------------------
-
-    while steps < MAX_STEPS:
-
-        # =============================================================
-        # 1. SAC PROPOSES AN ACTION
-        # =============================================================
-
-        proposed_action = agent.select_action(
-            state,
-            evaluate=True,
+        error = abs(
+            result.risk_score
+            - result.expected_risk
         )
 
-        proposed_action = np.asarray(
-            proposed_action,
-            dtype=np.float32,
+        max_error = max(
+            max_error,
+            error,
         )
 
-        # =============================================================
-        # 2. BUILD CONTROLLED ACTION
-        # =============================================================
+        if validate_formula(
+            result
+        ):
 
-        controlled_action = build_controlled_action(
-            scenario,
-            proposed_action,
-        )
-
-        # =============================================================
-        # 3. BUILD CONTROLLED TELEMETRY
-        #
-        # IMPORTANT:
-        # This intentionally uses scenario-controlled telemetry.
-        # =============================================================
-
-        telemetry = build_controlled_telemetry(
-            scenario
-        )
-
-        # =============================================================
-        # 4. CONTROLLED TRUST
-        # =============================================================
-
-        trust_score = float(
-            scenario["trust"]
-        )
-
-        # =============================================================
-        # 5. GOVERNANCE DECISION
-        # =============================================================
-
-        decision = governance.evaluate(
-            action=controlled_action,
-            trust_score=trust_score,
-            telemetry=telemetry,
-        )
-
-        # =============================================================
-        # 6. EXTRACT EXECUTED ACTION
-        # =============================================================
-
-        executed_action = np.asarray(
-            decision.action,
-            dtype=np.float32,
-        )
-
-        # =============================================================
-        # 7. GOVERNANCE BRANCH ACCOUNTING
-        # =============================================================
-
-        if decision.status == "ALLOW":
-
-            allow_count += 1
-
-        elif decision.status == "CONSTRAIN":
-
-            constrain_count += 1
-
-        elif decision.status == "BLOCK":
-
-            block_count += 1
+            passed += 1
 
         else:
 
-            raise RuntimeError(
-                "Unknown governance status: "
-                f"{decision.status}"
+            failed += 1
+
+    print()
+    print("=" * 78)
+    print("RISK FORMULA VALIDATION")
+    print("=" * 78)
+
+    print(
+        f"Points checked       : "
+        f"{len(results)}"
+    )
+
+    print(
+        f"Formula matches      : "
+        f"{passed}"
+    )
+
+    print(
+        f"Formula mismatches   : "
+        f"{failed}"
+    )
+
+    print(
+        f"Maximum absolute err : "
+        f"{max_error:.12f}"
+    )
+
+    passed_all = (
+        failed == 0
+    )
+
+    print(
+        "RESULT                : "
+        f"{'PASS' if passed_all else 'FAIL'}"
+    )
+
+    return passed_all
+
+
+# ============================================================================
+# TRUST INITIALIZATION SUMMARY
+# ============================================================================
+
+def summarize_trust_initialization(
+    results: list[BenchmarkResult],
+) -> bool:
+    """
+    Validate that every controlled trust value is correctly represented
+    by both:
+
+        - governance trust
+        - environment trust
+
+    This guards against the original H5-B failure in which controlled
+    environment trust could differ from internal governance trust.
+    """
+
+    governance_mismatches = []
+    environment_mismatches = []
+
+    for index, result in enumerate(results):
+
+        if not np.isclose(
+            result.trust,
+            result.governance_trust,
+            atol=1e-6,
+            rtol=0.0,
+        ):
+
+            governance_mismatches.append(
+                (
+                    index,
+                    result.trust,
+                    result.governance_trust,
+                )
             )
 
-        # =============================================================
-        # 8. GOVERNANCE REASON ACCOUNTING
-        # =============================================================
+        if not np.isclose(
+            result.trust,
+            result.environment_trust,
+            atol=1e-6,
+            rtol=0.0,
+        ):
 
-        reason = str(
-            decision.reason
+            environment_mismatches.append(
+                (
+                    index,
+                    result.trust,
+                    result.environment_trust,
+                )
+            )
+
+    print()
+    print("=" * 78)
+    print("TRUST INITIALIZATION VALIDATION")
+    print("=" * 78)
+
+    print(
+        f"Points checked           : "
+        f"{len(results)}"
+    )
+
+    print(
+        f"Governance trust matches : "
+        f"{len(results) - len(governance_mismatches)}"
+    )
+
+    print(
+        f"Governance mismatches    : "
+        f"{len(governance_mismatches)}"
+    )
+
+    print(
+        f"Environment trust matches: "
+        f"{len(results) - len(environment_mismatches)}"
+    )
+
+    print(
+        f"Environment mismatches   : "
+        f"{len(environment_mismatches)}"
+    )
+
+    if governance_mismatches:
+
+        first = governance_mismatches[0]
+
+        print(
+            "First governance mismatch: "
+            f"index={first[0]}, "
+            f"input={first[1]:.6f}, "
+            f"governance={first[2]:.6f}"
         )
 
-        reason_counts[reason] = (
-            reason_counts.get(
-                reason,
-                0,
+    if environment_mismatches:
+
+        first = environment_mismatches[0]
+
+        print(
+            "First environment mismatch: "
+            f"index={first[0]}, "
+            f"input={first[1]:.6f}, "
+            f"environment={first[2]:.6f}"
+        )
+
+    passed = (
+        len(governance_mismatches) == 0
+        and len(environment_mismatches) == 0
+    )
+
+    print(
+        "RESULT                : "
+        f"{'PASS' if passed else 'FAIL'}"
+    )
+
+    return passed
+
+
+# ============================================================================
+# GOVERNANCE OPERATING REGION
+# ============================================================================
+
+def summarize_regions(
+    results: list[BenchmarkResult],
+) -> tuple[int, int, int]:
+    """
+    Summarize ALLOW / CONSTRAIN / BLOCK operating regions.
+    """
+
+    total = len(results)
+
+    allow = sum(
+        1
+        for result in results
+        if result.governance_status == "ALLOW"
+    )
+
+    constrain = sum(
+        1
+        for result in results
+        if result.governance_status == "CONSTRAIN"
+    )
+
+    block = sum(
+        1
+        for result in results
+        if result.governance_status == "BLOCK"
+    )
+
+    print()
+    print("=" * 78)
+    print("GOVERNANCE OPERATING REGION")
+    print("=" * 78)
+
+    print(
+        f"Total points          : "
+        f"{total}"
+    )
+
+    print(
+        f"ALLOW                 : "
+        f"{allow:6d} "
+        f"({allow / total * 100:6.2f}%)"
+    )
+
+    print(
+        f"CONSTRAIN             : "
+        f"{constrain:6d} "
+        f"({constrain / total * 100:6.2f}%)"
+    )
+
+    print(
+        f"BLOCK                 : "
+        f"{block:6d} "
+        f"({block / total * 100:6.2f}%)"
+    )
+
+    print()
+
+    print(
+        "[PASS] ALLOW operating region exists"
+        if allow > 0
+        else
+        "[FAIL] ALLOW operating region missing"
+    )
+
+    print(
+        "[PASS] CONSTRAIN operating region exists"
+        if constrain > 0
+        else
+        "[FAIL] CONSTRAIN operating region missing"
+    )
+
+    print(
+        "[PASS] BLOCK operating region exists"
+        if block > 0
+        else
+        "[FAIL] BLOCK operating region missing"
+    )
+
+    return (
+        allow,
+        constrain,
+        block,
+    )
+
+
+# ============================================================================
+# RISK LEVEL DISTRIBUTION
+# ============================================================================
+
+def summarize_risk_levels(
+    results: list[BenchmarkResult],
+) -> tuple[int, int, int]:
+    """
+    Summarize LOW / MEDIUM / HIGH risk distribution.
+    """
+
+    total = len(results)
+
+    low = sum(
+        1
+        for result in results
+        if result.risk_level == "LOW"
+    )
+
+    medium = sum(
+        1
+        for result in results
+        if result.risk_level == "MEDIUM"
+    )
+
+    high = sum(
+        1
+        for result in results
+        if result.risk_level == "HIGH"
+    )
+
+    print()
+    print("=" * 78)
+    print("RISK LEVEL DISTRIBUTION")
+    print("=" * 78)
+
+    print(
+        f"LOW                   : "
+        f"{low:6d} "
+        f"({low / total * 100:6.2f}%)"
+    )
+
+    print(
+        f"MEDIUM                : "
+        f"{medium:6d} "
+        f"({medium / total * 100:6.2f}%)"
+    )
+
+    print(
+        f"HIGH                  : "
+        f"{high:6d} "
+        f"({high / total * 100:6.2f}%)"
+    )
+
+    return (
+        low,
+        medium,
+        high,
+    )
+
+
+# ============================================================================
+# RISK SCORE RANGE
+# ============================================================================
+
+def summarize_risk_range(
+    results: list[BenchmarkResult],
+) -> None:
+    """
+    Report numerical risk statistics.
+    """
+
+    scores = np.asarray(
+        [
+            result.risk_score
+            for result in results
+        ],
+        dtype=np.float64,
+    )
+
+    print()
+    print("=" * 78)
+    print("RISK SCORE RANGE")
+    print("=" * 78)
+
+    print(
+        f"Minimum               : "
+        f"{np.min(scores):.6f}"
+    )
+
+    print(
+        f"Maximum               : "
+        f"{np.max(scores):.6f}"
+    )
+
+    print(
+        f"Mean                  : "
+        f"{np.mean(scores):.6f}"
+    )
+
+    print(
+        f"Median                : "
+        f"{np.median(scores):.6f}"
+    )
+
+
+# ============================================================================
+# RISK × GOVERNANCE CROSS TABULATION
+# ============================================================================
+
+def summarize_cross_tab(
+    results: list[BenchmarkResult],
+) -> None:
+    """
+    Print risk-level × governance-status cross-tabulation.
+    """
+
+    combinations = [
+        ("LOW", "ALLOW"),
+        ("LOW", "CONSTRAIN"),
+        ("LOW", "BLOCK"),
+        ("MEDIUM", "ALLOW"),
+        ("MEDIUM", "CONSTRAIN"),
+        ("MEDIUM", "BLOCK"),
+        ("HIGH", "ALLOW"),
+        ("HIGH", "CONSTRAIN"),
+        ("HIGH", "BLOCK"),
+    ]
+
+    print()
+    print("=" * 78)
+    print("RISK LEVEL x GOVERNANCE STATUS")
+    print("=" * 78)
+
+    for risk_level, status in combinations:
+
+        count = sum(
+            1
+            for result in results
+            if (
+                result.risk_level == risk_level
+                and result.governance_status == status
             )
+        )
+
+        print(
+            f"{risk_level:<8} -> "
+            f"{status:<10} : "
+            f"{count}"
+        )
+
+
+# ============================================================================
+# GOVERNANCE REASON DISTRIBUTION
+# ============================================================================
+
+def summarize_reasons(
+    results: list[BenchmarkResult],
+) -> dict[str, int]:
+    """
+    Count actual GovernanceEngine decision reasons.
+    """
+
+    counts: dict[str, int] = {}
+
+    for result in results:
+
+        reason = result.governance_reason
+
+        counts[reason] = (
+            counts.get(reason, 0)
             + 1
         )
 
-        # =============================================================
-        # 9. ACTION MODIFICATION
-        # =============================================================
+    print()
+    print("=" * 78)
+    print("GOVERNANCE REASON DISTRIBUTION")
+    print("=" * 78)
 
-        delta = float(
-            np.max(
-                np.abs(
-                    executed_action
-                    - controlled_action
-                )
-            )
+    for reason in sorted(counts):
+
+        print(
+            f"{reason:<32} : "
+            f"{counts[reason]}"
         )
 
-        action_deltas.append(
-            delta
-        )
+    return counts
 
-        if delta > 1e-8:
 
-            modified_count += 1
+# ============================================================================
+# POLICY DISTRIBUTION
+# ============================================================================
 
-        # =============================================================
-        # 10. RISK / TRUST RECORDING
-        # =============================================================
+def summarize_policy(
+    results: list[BenchmarkResult],
+) -> tuple[int, int]:
+    """
+    Summarize policy-approved and policy-rejected operating points.
+    """
 
-        risks.append(
-            float(
-                decision.risk.risk_score
-            )
-        )
-
-        trusts.append(
-            float(
-                decision.risk.trust_score
-            )
-        )
-
-        # =============================================================
-        # 11. EXPECTED BRANCH VALIDATION
-        # =============================================================
-
-        if not validate_status(
-            decision.status,
-            scenario["expected_status"],
-        ):
-
-            branch_mismatch_count += 1
-
-        # =============================================================
-        # 12. EXECUTE GOVERNED ACTION IN IRF
-        # =============================================================
-
-        (
-            next_state,
-            reward,
-            done,
-            info,
-        ) = step_environment(
-            env,
-            executed_action,
-        )
-
-        total_reward += reward
-
-        steps += 1
-
-        state = next_state
-
-        if done:
-            break
-
-    # -----------------------------------------------------------------
-    # Determine dominant/primary branch
-    # -----------------------------------------------------------------
-
-    branch_counts = {
-        "ALLOW": allow_count,
-        "CONSTRAIN": constrain_count,
-        "BLOCK": block_count,
-    }
-
-    actual_primary_status = max(
-        branch_counts,
-        key=branch_counts.get,
+    allowed = sum(
+        1
+        for result in results
+        if result.policy_allowed
     )
 
-    # -----------------------------------------------------------------
-    # Return scenario result
-    # -----------------------------------------------------------------
+    rejected = sum(
+        1
+        for result in results
+        if not result.policy_allowed
+    )
 
-    return {
-        "scenario": scenario["name"],
+    print()
+    print("=" * 78)
+    print("POLICY OPERATING REGION")
+    print("=" * 78)
 
-        "seed": seed,
+    print(
+        f"Policy allowed       : "
+        f"{allowed}"
+    )
 
-        "expected_status": scenario[
-            "expected_status"
-        ],
+    print(
+        f"Policy rejected      : "
+        f"{rejected}"
+    )
 
-        "actual_primary_status": (
-            actual_primary_status
-        ),
+    return (
+        allowed,
+        rejected,
+    )
 
-        "steps": steps,
 
-        "total_reward": (
-            total_reward
-        ),
+# ============================================================================
+# CONSTRAIN REGION VALIDATION
+# ============================================================================
 
-        "mean_reward": (
-            total_reward / steps
-            if steps > 0
-            else 0.0
-        ),
+def validate_constrain_region(
+    results: list[BenchmarkResult],
+) -> bool:
+    """
+    Validate the MEDIUM-risk -> CONSTRAIN path.
 
-        "mean_trust": (
-            mean(trusts)
-            if trusts
-            else 0.0
-        ),
+    A valid CONSTRAIN point must satisfy:
 
-        "mean_risk": (
-            mean(risks)
-            if risks
-            else 0.0
-        ),
+        risk_level == MEDIUM
+        governance_status == CONSTRAIN
+        policy_allowed == True
+        action_modified == True
+        trust >= minimum trust
+    """
 
-        "allow_count": allow_count,
+    candidates = [
+        result
+        for result in results
+        if (
+            result.risk_level == "MEDIUM"
+            and result.governance_status == "CONSTRAIN"
+        )
+    ]
 
-        "constrain_count": (
-            constrain_count
-        ),
+    valid = [
+        result
+        for result in candidates
+        if (
+            result.policy_allowed
+            and result.action_modified
+            and result.governance_trust
+            >= MINIMUM_TRUST
+        )
+    ]
 
-        "block_count": block_count,
+    print()
+    print("=" * 78)
+    print("CONSTRAIN REGION VALIDATION")
+    print("=" * 78)
 
-        "modified_count": (
-            modified_count
-        ),
+    print(
+        f"MEDIUM-risk points   : "
+        f"{len(candidates)}"
+    )
 
-        "modification_rate": (
-            modified_count / steps
-            if steps > 0
-            else 0.0
-        ),
+    print(
+        f"Valid CONSTRAIN      : "
+        f"{len(valid)}"
+    )
 
-        "mean_action_delta": (
-            mean(action_deltas)
-            if action_deltas
-            else 0.0
-        ),
+    passed = (
+        len(candidates) > 0
+        and len(valid) == len(candidates)
+    )
 
-        "max_action_delta": (
-            max(action_deltas)
-            if action_deltas
-            else 0.0
-        ),
+    print(
+        "RESULT                : "
+        f"{'PASS' if passed else 'FAIL'}"
+    )
 
-        "branch_mismatch_count": (
-            branch_mismatch_count
-        ),
+    if valid:
 
-        "branch_accuracy": (
-            1.0
-            if branch_mismatch_count == 0
-            else 0.0
-        ),
+        example = valid[0]
 
-        "reason_counts": (
-            reason_counts
-        ),
+        print()
+        print("Example valid CONSTRAIN point:")
+
+        print(
+            f"  Trust             : "
+            f"{example.trust:.2f}"
+        )
+
+        print(
+            f"  Action magnitude  : "
+            f"{example.action_magnitude:.2f}"
+        )
+
+        print(
+            f"  Queue             : "
+            f"{example.queue_pressure:.2f}"
+        )
+
+        print(
+            f"  Interference      : "
+            f"{example.interference_pressure:.2f}"
+        )
+
+        print(
+            f"  Risk              : "
+            f"{example.risk_score:.6f}"
+        )
+
+        print(
+            f"  Status            : "
+            f"{example.governance_status}"
+        )
+
+        print(
+            f"  Reason            : "
+            f"{example.governance_reason}"
+        )
+
+        print(
+            f"  Action modified   : "
+            f"{example.action_modified}"
+        )
+
+    return passed
+
+
+# ============================================================================
+# HIGH-RISK REGION VALIDATION
+# ============================================================================
+
+def validate_high_risk_region(
+    results: list[BenchmarkResult],
+) -> bool:
+    """
+    Validate HIGH-risk governance behavior.
+
+    Policy violation has higher precedence than HIGH_RISK.
+
+    Therefore only policy-compliant HIGH-risk points are used to
+    validate the HIGH_RISK -> BLOCK path.
+    """
+
+    high_points = [
+        result
+        for result in results
+        if result.risk_level == "HIGH"
+    ]
+
+    policy_compliant_high = [
+        result
+        for result in high_points
+        if result.policy_allowed
+    ]
+
+    correct = [
+        result
+        for result in policy_compliant_high
+        if (
+            result.governance_status == "BLOCK"
+            and result.governance_reason
+            == "HIGH_RISK"
+        )
+    ]
+
+    print()
+    print("=" * 78)
+    print("HIGH-RISK VALIDATION")
+    print("=" * 78)
+
+    print(
+        f"HIGH-risk points     : "
+        f"{len(high_points)}"
+    )
+
+    print(
+        f"Policy-compliant HIGH: "
+        f"{len(policy_compliant_high)}"
+    )
+
+    print(
+        f"Correct HIGH blocks  : "
+        f"{len(correct)}"
+    )
+
+    passed = (
+        len(high_points) > 0
+        and len(policy_compliant_high) > 0
+        and len(correct)
+        == len(policy_compliant_high)
+    )
+
+    print(
+        "RESULT                : "
+        f"{'PASS' if passed else 'FAIL'}"
+    )
+
+    return passed
+
+
+# ============================================================================
+# LOW-TRUST GOVERNANCE VALIDATION
+# ============================================================================
+
+def validate_low_trust_region(
+    results: list[BenchmarkResult],
+) -> bool:
+    """
+    Validate the low-trust governance boundary while respecting
+    GovernanceEngine precedence.
+
+    Governance precedence:
+
+        1. POLICY_VIOLATION
+        2. HIGH_RISK
+        3. TRUST_BELOW_MINIMUM
+        4. MEDIUM_RISK_SAFE_ENVELOPE
+        5. GOVERNANCE_APPROVED
+
+    Therefore, NOT every low-trust point is expected to have:
+
+        TRUST_BELOW_MINIMUM
+
+    because some low-trust points can legitimately be intercepted
+    earlier by:
+
+        POLICY_VIOLATION
+        HIGH_RISK
+
+    The specific trust-boundary validation therefore selects only
+    low-trust points for which no higher-precedence condition applies.
+
+    Eligible point:
+
+        trust < 0.60
+        AND policy_allowed == True
+        AND risk_level != HIGH
+
+    Expected:
+
+        BLOCK
+        TRUST_BELOW_MINIMUM
+        governance_trust < 0.60
+    """
+
+    # ------------------------------------------------------------------------
+    # All low-trust operating points
+    # ------------------------------------------------------------------------
+
+    low_trust_points = [
+        result
+        for result in results
+        if result.trust < MINIMUM_TRUST
+    ]
+
+    # ------------------------------------------------------------------------
+    # Points where trust precedence is actually eligible.
+    #
+    # POLICY_VIOLATION and HIGH_RISK are intentionally excluded because
+    # they have higher precedence in GovernanceEngine.
+    # ------------------------------------------------------------------------
+
+    eligible_points = [
+        result
+        for result in low_trust_points
+        if (
+            result.policy_allowed
+            and result.risk_level != "HIGH"
+        )
+    ]
+
+    # ------------------------------------------------------------------------
+    # Correct trust-boundary decisions
+    # ------------------------------------------------------------------------
+
+    correct = [
+        result
+        for result in eligible_points
+        if (
+            result.governance_status == "BLOCK"
+            and result.governance_reason
+            == "TRUST_BELOW_MINIMUM"
+            and result.governance_trust
+            < MINIMUM_TRUST
+        )
+    ]
+
+    # ------------------------------------------------------------------------
+    # Validation report
+    # ------------------------------------------------------------------------
+
+    print()
+    print("=" * 78)
+    print("LOW-TRUST GOVERNANCE VALIDATION")
+    print("=" * 78)
+
+    print(
+        f"Low-trust points             : "
+        f"{len(low_trust_points)}"
+    )
+
+    print(
+        f"Eligible trust-boundary pts  : "
+        f"{len(eligible_points)}"
+    )
+
+    print(
+        f"Correct trust blocks         : "
+        f"{len(correct)}"
+    )
+
+    # ------------------------------------------------------------------------
+    # Scientific invariant
+    # ------------------------------------------------------------------------
+
+    passed = (
+        len(eligible_points) > 0
+        and len(correct) == len(eligible_points)
+    )
+
+    print(
+        "RESULT                       : "
+        f"{'PASS' if passed else 'FAIL'}"
+    )
+
+    # ------------------------------------------------------------------------
+    # Representative valid point
+    # ------------------------------------------------------------------------
+
+    if correct:
+
+        example = correct[0]
+
+        print()
+        print("Example valid LOW-TRUST point:")
+
+        print(
+            f"  Controlled trust       : "
+            f"{example.trust:.2f}"
+        )
+
+        print(
+            f"  Governance trust       : "
+            f"{example.governance_trust:.2f}"
+        )
+
+        print(
+            f"  Action magnitude       : "
+            f"{example.action_magnitude:.2f}"
+        )
+
+        print(
+            f"  Queue pressure         : "
+            f"{example.queue_pressure:.2f}"
+        )
+
+        print(
+            f"  Interference pressure  : "
+            f"{example.interference_pressure:.2f}"
+        )
+
+        print(
+            f"  Risk                   : "
+            f"{example.risk_score:.6f}"
+        )
+
+        print(
+            f"  Risk level             : "
+            f"{example.risk_level}"
+        )
+
+        print(
+            f"  Governance status      : "
+            f"{example.governance_status}"
+        )
+
+        print(
+            f"  Governance reason      : "
+            f"{example.governance_reason}"
+        )
+
+    return passed
+
+
+# ============================================================================
+# POLICY PRECEDENCE VALIDATION
+# ============================================================================
+
+def validate_policy_precedence(
+    results: list[BenchmarkResult],
+) -> bool:
+    """
+    Validate that every actual policy violation produces BLOCK with
+    POLICY_VIOLATION precedence.
+    """
+
+    policy_violations = [
+        result
+        for result in results
+        if not result.policy_allowed
+    ]
+
+    correct = [
+        result
+        for result in policy_violations
+        if (
+            result.governance_status == "BLOCK"
+            and result.governance_reason
+            == "POLICY_VIOLATION"
+        )
+    ]
+
+    print()
+    print("=" * 78)
+    print("POLICY-PRECEDENCE VALIDATION")
+    print("=" * 78)
+
+    print(
+        f"Policy violations     : "
+        f"{len(policy_violations)}"
+    )
+
+    print(
+        f"Correct policy blocks : "
+        f"{len(correct)}"
+    )
+
+    passed = (
+        len(policy_violations) > 0
+        and len(correct)
+        == len(policy_violations)
+    )
+
+    print(
+        "RESULT                : "
+        f"{'PASS' if passed else 'FAIL'}"
+    )
+
+    return passed
+
+
+# ============================================================================
+# THRESHOLD REPORT
+# ============================================================================
+
+def print_threshold_analysis() -> None:
+    """
+    Print the governance thresholds used for independent validation.
+    """
+
+    print()
+    print("=" * 78)
+    print("CONFIGURED GOVERNANCE THRESHOLDS")
+    print("=" * 78)
+
+    print("Risk thresholds:")
+
+    print(
+        f"  LOW       : risk < "
+        f"{RISK_LOW_THRESHOLD:.2f}"
+    )
+
+    print(
+        f"  MEDIUM    : "
+        f"{RISK_LOW_THRESHOLD:.2f} <= risk < "
+        f"{RISK_HIGH_THRESHOLD:.2f}"
+    )
+
+    print(
+        f"  HIGH      : risk >= "
+        f"{RISK_HIGH_THRESHOLD:.2f}"
+    )
+
+    print()
+
+    print("Trust threshold:")
+
+    print(
+        f"  minimum trust = "
+        f"{MINIMUM_TRUST:.2f}"
+    )
+
+    print()
+
+    print("Risk equation:")
+
+    print(
+        "  risk = "
+        "0.45 * trust_risk "
+        "+ 0.35 * action_anomaly "
+        "+ 0.20 * telemetry_risk"
+    )
+
+    print()
+
+    print("Action anomaly:")
+
+    print(
+        "  anomaly = "
+        "clip((abs(action) - 0.70) / 0.30, 0, 1)"
+    )
+
+    print()
+
+    print("Governance precedence:")
+
+    print(
+        "  1. POLICY_VIOLATION"
+    )
+
+    print(
+        "  2. HIGH_RISK"
+    )
+
+    print(
+        "  3. TRUST_BELOW_MINIMUM"
+    )
+
+    print(
+        "  4. MEDIUM_RISK_SAFE_ENVELOPE"
+    )
+
+    print(
+        "  5. GOVERNANCE_APPROVED"
+    )
+
+    print()
+
+    print("Important:")
+
+    print(
+        "  Numerical risk level and governance status are not identical."
+    )
+
+    print(
+        "  LOW risk can still produce BLOCK because of policy violation"
+    )
+
+    print(
+        "  or governance trust below the minimum threshold."
+    )
+
+
+# ============================================================================
+# FINAL VALIDATION
+# ============================================================================
+
+def final_validation(
+    results: list[BenchmarkResult],
+    formula_pass: bool,
+    trust_initialization_pass: bool,
+    allow: int,
+    constrain: int,
+    block: int,
+    constrain_pass: bool,
+    high_risk_pass: bool,
+    low_trust_pass: bool,
+    policy_precedence_pass: bool,
+) -> bool:
+    """
+    Perform final research-benchmark validation.
+    """
+
+    statuses = {
+        result.governance_status
+        for result in results
     }
 
+    risk_levels = {
+        result.risk_level
+        for result in results
+    }
 
-# ============================================================================
-# SUMMARY
-# ============================================================================
+    # ------------------------------------------------------------------------
+    # Governance regions
+    # ------------------------------------------------------------------------
 
-def summarize(
-    results: list[dict],
-) -> dict:
-    """
-    Aggregate all scenario/seed results.
-    """
+    allow_pass = (
+        "ALLOW" in statuses
+        and allow > 0
+    )
 
-    grouped = {}
+    constrain_region_pass = (
+        "CONSTRAIN" in statuses
+        and constrain > 0
+        and constrain_pass
+    )
 
-    for scenario in SCENARIOS:
+    block_pass = (
+        "BLOCK" in statuses
+        and block > 0
+    )
 
-        name = scenario["name"]
+    # ------------------------------------------------------------------------
+    # Risk regions
+    # ------------------------------------------------------------------------
 
-        rows = [
-            row
-            for row in results
-            if row["scenario"] == name
+    medium_present = (
+        "MEDIUM" in risk_levels
+    )
+
+    high_present = (
+        "HIGH" in risk_levels
+    )
+
+    # ------------------------------------------------------------------------
+    # Final report
+    # ------------------------------------------------------------------------
+
+    print()
+    print("=" * 78)
+    print("FINAL VALIDATION")
+    print("=" * 78)
+
+    print(
+        "Real RiskEngine formula : "
+        f"{'PASS' if formula_pass else 'FAIL'}"
+    )
+
+    print(
+        "Trust initialization    : "
+        f"{'PASS' if trust_initialization_pass else 'FAIL'}"
+    )
+
+    print(
+        "ALLOW region            : "
+        f"{'PASS' if allow_pass else 'FAIL'}"
+    )
+
+    print(
+        "CONSTRAIN region        : "
+        f"{'PASS' if constrain_region_pass else 'FAIL'}"
+    )
+
+    print(
+        "BLOCK region            : "
+        f"{'PASS' if block_pass else 'FAIL'}"
+    )
+
+    print(
+        "MEDIUM risk region      : "
+        f"{'PASS' if medium_present else 'FAIL'}"
+    )
+
+    print(
+        "HIGH risk region        : "
+        f"{'PASS' if high_present else 'FAIL'}"
+    )
+
+    print(
+        "CONSTRAIN validation    : "
+        f"{'PASS' if constrain_pass else 'FAIL'}"
+    )
+
+    print(
+        "HIGH-risk validation    : "
+        f"{'PASS' if high_risk_pass else 'FAIL'}"
+    )
+
+    print(
+        "Low-trust validation    : "
+        f"{'PASS' if low_trust_pass else 'FAIL'}"
+    )
+
+    print(
+        "Policy precedence       : "
+        f"{'PASS' if policy_precedence_pass else 'FAIL'}"
+    )
+
+    # ------------------------------------------------------------------------
+    # Final benchmark condition
+    # ------------------------------------------------------------------------
+
+    benchmark_passed = all(
+        [
+            formula_pass,
+            trust_initialization_pass,
+            allow_pass,
+            constrain_region_pass,
+            block_pass,
+            medium_present,
+            high_present,
+            constrain_pass,
+            high_risk_pass,
+            low_trust_pass,
+            policy_precedence_pass,
         ]
-
-        if not rows:
-            continue
-
-        total_steps = sum(
-            row["steps"]
-            for row in rows
-        )
-
-        # -------------------------------------------------------------
-        # Aggregate reason counts
-        # -------------------------------------------------------------
-
-        combined_reasons = {}
-
-        for row in rows:
-
-            for reason, count in row[
-                "reason_counts"
-            ].items():
-
-                combined_reasons[reason] = (
-                    combined_reasons.get(
-                        reason,
-                        0,
-                    )
-                    + count
-                )
-
-        # -------------------------------------------------------------
-        # Scenario summary
-        # -------------------------------------------------------------
-
-        grouped[name] = {
-
-            "runs": len(rows),
-
-            "expected_status": (
-                scenario["expected_status"]
-            ),
-
-            "mean_total_reward": mean(
-                r["total_reward"]
-                for r in rows
-            ),
-
-            "mean_reward_per_step": mean(
-                r["mean_reward"]
-                for r in rows
-            ),
-
-            "mean_trust": mean(
-                r["mean_trust"]
-                for r in rows
-            ),
-
-            "mean_risk": mean(
-                r["mean_risk"]
-                for r in rows
-            ),
-
-            "allow_rate": (
-                sum(
-                    r["allow_count"]
-                    for r in rows
-                )
-                / total_steps
-                if total_steps > 0
-                else 0.0
-            ),
-
-            "constrain_rate": (
-                sum(
-                    r["constrain_count"]
-                    for r in rows
-                )
-                / total_steps
-                if total_steps > 0
-                else 0.0
-            ),
-
-            "block_rate": (
-                sum(
-                    r["block_count"]
-                    for r in rows
-                )
-                / total_steps
-                if total_steps > 0
-                else 0.0
-            ),
-
-            "modification_rate": (
-                sum(
-                    r["modified_count"]
-                    for r in rows
-                )
-                / total_steps
-                if total_steps > 0
-                else 0.0
-            ),
-
-            "mean_action_delta": mean(
-                r["mean_action_delta"]
-                for r in rows
-            ),
-
-            "max_action_delta": max(
-                r["max_action_delta"]
-                for r in rows
-            ),
-
-            "branch_mismatches": sum(
-                r["branch_mismatch_count"]
-                for r in rows
-            ),
-
-            "branch_accuracy": (
-                1.0
-                if sum(
-                    r["branch_mismatch_count"]
-                    for r in rows
-                ) == 0
-                else
-                1.0
-                -
-                (
-                    sum(
-                        r[
-                            "branch_mismatch_count"
-                        ]
-                        for r in rows
-                    )
-                    / total_steps
-                )
-            ),
-
-            "reason_counts": (
-                combined_reasons
-            ),
-        }
-
-    # -----------------------------------------------------------------
-    # Overall statistics
-    # -----------------------------------------------------------------
-
-    total_steps = sum(
-        row["steps"]
-        for row in results
     )
 
-    total_mismatches = sum(
-        row["branch_mismatch_count"]
-        for row in results
-    )
+    print()
 
-    total_modifications = sum(
-        row["modified_count"]
-        for row in results
-    )
+    if benchmark_passed:
 
-    overall_branch_accuracy = (
-        1.0
-        - (
-            total_mismatches
-            / total_steps
-        )
-        if total_steps > 0
-        else 0.0
-    )
-
-    overall_modification_rate = (
-        total_modifications
-        / total_steps
-        if total_steps > 0
-        else 0.0
-    )
-
-    return {
-
-        "scenario_summary": grouped,
-
-        "total_runs": len(results),
-
-        "total_steps": total_steps,
-
-        "total_branch_mismatches": (
-            total_mismatches
-        ),
-
-        "branch_accuracy": (
-            overall_branch_accuracy
-        ),
-
-        "total_modifications": (
-            total_modifications
-        ),
-
-        "overall_modification_rate": (
-            overall_modification_rate
-        ),
-    }
-
-
-# ============================================================================
-# REPORT GENERATION
-# ============================================================================
-
-def build_report(
-    all_results: list[dict],
-    summary: dict,
-) -> dict:
-    """
-    Build machine-readable benchmark report.
-    """
-
-    return {
-
-        "benchmark": (
-            "H5-B Governance "
-            "Operating-Region Benchmark"
-        ),
-
-        "project": (
-            "TA-FDRL-IRF"
-        ),
-
-        "purpose": (
-            "Controlled execution-level "
-            "evaluation of governance "
-            "operating regions."
-        ),
-
-        "scientific_core_modified": False,
-
-        "checkpoint": str(
-            CHECKPOINT
-        ),
-
-        "state_dim": STATE_DIM,
-
-        "action_dim": ACTION_DIM,
-
-        "num_users": NUM_USERS,
-
-        "max_steps": MAX_STEPS,
-
-        "seeds": SEEDS,
-
-        "scenarios": SCENARIOS,
-
-        "results": all_results,
-
-        "summary": summary,
-
-        "scientific_interpretation": {
-
-            "note_1": (
-                "H5-B uses controlled trust, "
-                "action, queue, and interference "
-                "conditions to exercise specific "
-                "governance operating regions."
-            ),
-
-            "note_2": (
-                "Controlled telemetry is passed "
-                "directly to the GovernanceEngine "
-                "for operating-region evaluation."
-            ),
-
-            "note_3": (
-                "The governed action is subsequently "
-                "executed inside the existing IRF "
-                "environment."
-            ),
-
-            "note_4": (
-                "The benchmark does not claim that "
-                "the controlled conditions represent "
-                "measured physical-world 6G conditions."
-            ),
-
-            "note_5": (
-                "The existing SAC checkpoint, "
-                "SAC architecture, IRF environment, "
-                "reward function, and Phase-4A results "
-                "remain unchanged."
-            ),
-
-            "note_6": (
-                "Performance differences observed "
-                "under controlled scenarios represent "
-                "governance execution effects and "
-                "should not be interpreted as evidence "
-                "of real-world network performance."
-            ),
-        },
-    }
-
-
-# ============================================================================
-# TEXT REPORT
-# ============================================================================
-
-def write_text_report(
-    summary: dict,
-) -> None:
-    """
-    Write human-readable scientific benchmark report.
-    """
-
-    with open(
-        TEXT_RESULT,
-        "w",
-        encoding="utf-8",
-    ) as f:
-
-        # -------------------------------------------------------------
-        # Header
-        # -------------------------------------------------------------
-
-        f.write(
-            "=" * 78
-            + "\n"
+        print(
+            "RESULT: GOVERNANCE OPERATING REGION BENCHMARK PASSED"
         )
 
-        f.write(
-            "TA-FDRL-IRF H5-B GOVERNANCE "
-            "OPERATING-REGION BENCHMARK\n"
+        print(
+            "RESULT: REAL RISK EQUATION VALIDATED"
         )
 
-        f.write(
-            "=" * 78
-            + "\n\n"
+        print(
+            "RESULT: CONTROLLED TRUST INITIALIZATION VALIDATED"
         )
 
-        # -------------------------------------------------------------
-        # Configuration
-        # -------------------------------------------------------------
-
-        f.write(
-            "BENCHMARK CONFIGURATION\n"
+        print(
+            "RESULT: ALLOW / CONSTRAIN / BLOCK REGIONS OBSERVED"
         )
 
-        f.write(
-            "-" * 78
-            + "\n"
+        print(
+            "RESULT: MEDIUM-RISK SAFE-ENVELOPE REGION VALIDATED"
         )
 
-        f.write(
-            f"Project root: {PROJECT_ROOT}\n"
+        print(
+            "RESULT: HIGH-RISK BLOCK REGION VALIDATED"
         )
 
-        f.write(
-            f"Checkpoint: {CHECKPOINT}\n"
+        print(
+            "RESULT: LOW-TRUST GOVERNANCE BOUNDARY VALIDATED"
         )
 
-        f.write(
-            f"Seeds: {SEEDS}\n"
+        print(
+            "RESULT: POLICY-PRECEDENCE BLOCK REGION VALIDATED"
         )
 
-        f.write(
-            f"Max steps: {MAX_STEPS}\n"
+    else:
+
+        print(
+            "RESULT: GOVERNANCE OPERATING REGION BENCHMARK FAILED"
         )
 
-        f.write(
-            f"State dimension: {STATE_DIM}\n"
-        )
+    print("=" * 78)
 
-        f.write(
-            f"Action dimension: {ACTION_DIM}\n"
-        )
-
-        f.write(
-            f"Users: {NUM_USERS}\n"
-        )
-
-        f.write(
-            "\n"
-        )
-
-        # -------------------------------------------------------------
-        # Scenario results
-        # -------------------------------------------------------------
-
-        f.write(
-            "SCENARIO RESULTS\n"
-        )
-
-        f.write(
-            "-" * 78
-            + "\n"
-        )
-
-        for (
-            name,
-            data,
-        ) in summary[
-            "scenario_summary"
-        ].items():
-
-            f.write(
-                f"\n{name}\n"
-            )
-
-            f.write(
-                f"Expected status: "
-                f"{data['expected_status']}\n"
-            )
-
-            f.write(
-                f"Runs: "
-                f"{data['runs']}\n"
-            )
-
-            f.write(
-                f"Mean total reward: "
-                f"{data['mean_total_reward']:.6f}\n"
-            )
-
-            f.write(
-                f"Mean reward/step: "
-                f"{data['mean_reward_per_step']:.6f}\n"
-            )
-
-            f.write(
-                f"Mean trust: "
-                f"{data['mean_trust']:.6f}\n"
-            )
-
-            f.write(
-                f"Mean risk: "
-                f"{data['mean_risk']:.6f}\n"
-            )
-
-            f.write(
-                f"ALLOW rate: "
-                f"{data['allow_rate']:.2%}\n"
-            )
-
-            f.write(
-                f"CONSTRAIN rate: "
-                f"{data['constrain_rate']:.2%}\n"
-            )
-
-            f.write(
-                f"BLOCK rate: "
-                f"{data['block_rate']:.2%}\n"
-            )
-
-            f.write(
-                f"Modification rate: "
-                f"{data['modification_rate']:.2%}\n"
-            )
-
-            f.write(
-                f"Mean action delta: "
-                f"{data['mean_action_delta']:.6f}\n"
-            )
-
-            f.write(
-                f"Maximum action delta: "
-                f"{data['max_action_delta']:.6f}\n"
-            )
-
-            f.write(
-                f"Branch mismatches: "
-                f"{data['branch_mismatches']}\n"
-            )
-
-            f.write(
-                f"Branch accuracy: "
-                f"{data['branch_accuracy']:.2%}\n"
-            )
-
-            f.write(
-                "Reason counts:\n"
-            )
-
-            for (
-                reason,
-                count,
-            ) in data[
-                "reason_counts"
-            ].items():
-
-                f.write(
-                    f"  {reason}: {count}\n"
-                )
-
-        # -------------------------------------------------------------
-        # Overall validation
-        # -------------------------------------------------------------
-
-        f.write(
-            "\n"
-        )
-
-        f.write(
-            "OVERALL GOVERNANCE VALIDATION\n"
-        )
-
-        f.write(
-            "-" * 78
-            + "\n"
-        )
-
-        f.write(
-            f"Total runs: "
-            f"{summary['total_runs']}\n"
-        )
-
-        f.write(
-            f"Total steps: "
-            f"{summary['total_steps']}\n"
-        )
-
-        f.write(
-            f"Branch mismatches: "
-            f"{summary['total_branch_mismatches']}\n"
-        )
-
-        f.write(
-            f"Branch accuracy: "
-            f"{summary['branch_accuracy']:.2%}\n"
-        )
-
-        f.write(
-            f"Total action modifications: "
-            f"{summary['total_modifications']}\n"
-        )
-
-        f.write(
-            f"Overall modification rate: "
-            f"{summary['overall_modification_rate']:.2%}\n"
-        )
-
-        # -------------------------------------------------------------
-        # Scientific interpretation
-        # -------------------------------------------------------------
-
-        f.write(
-            "\n"
-        )
-
-        f.write(
-            "SCIENTIFIC INTERPRETATION\n"
-        )
-
-        f.write(
-            "-" * 78
-            + "\n"
-        )
-
-        f.write(
-            "H5-B evaluates governance execution "
-            "behavior across controlled operating "
-            "regions without modifying the existing "
-            "SAC or IRF scientific core.\n\n"
-        )
-
-        f.write(
-            "SAFE_ALLOW evaluates direct execution "
-            "when trust and risk conditions are "
-            "acceptable.\n\n"
-        )
-
-        f.write(
-            "MEDIUM_RISK_CONSTRAIN evaluates the "
-            "Safe Envelope intervention under a "
-            "controlled medium-risk condition. "
-            "Action modification is explicitly "
-            "measured.\n\n"
-        )
-
-        f.write(
-            "HIGH_RISK_BLOCK evaluates high-risk "
-            "enforcement and verifies that unsafe "
-            "actions are blocked.\n\n"
-        )
-
-        f.write(
-            "LOW_TRUST_BLOCK evaluates the explicit "
-            "minimum-trust governance gate.\n\n"
-        )
-
-        f.write(
-            "POLICY_VIOLATION_BLOCK evaluates policy "
-            "precedence independently of high trust.\n\n"
-        )
-
-        f.write(
-            "The controlled conditions are intended "
-            "to establish execution-level governance "
-            "behavior. They are not physical-world "
-            "6G measurements.\n\n"
-        )
-
-        f.write(
-            "The benchmark intentionally preserves "
-            "the existing SAC checkpoint, SAC "
-            "architecture, IRF environment, reward "
-            "function, and Phase-4A scientific "
-            "results.\n"
-        )
+    return benchmark_passed
 
 
 # ============================================================================
 # MAIN
 # ============================================================================
 
-def main():
+def main() -> None:
+    """
+    Execute the complete H5-B governance operating-region experiment.
+    """
+
+    print("=" * 78)
 
     print(
-        "=" * 78
+        "TA-FDRL-IRF GOVERNANCE OPERATING REGION BENCHMARK"
     )
 
-    print(
-        "TA-FDRL-IRF H5-B GOVERNANCE "
-        "OPERATING-REGION BENCHMARK"
-    )
+    print("=" * 78)
 
-    print(
-        "=" * 78
-    )
-
-    print(
-        f"Project root: {PROJECT_ROOT}"
-    )
-
-    print(
-        f"Checkpoint:   {CHECKPOINT}"
-    )
-
-    print(
-        f"Seeds:        {SEEDS}"
-    )
-
-    print(
-        f"Max steps:    {MAX_STEPS}"
-    )
+    # ------------------------------------------------------------------------
+    # Real components
+    # ------------------------------------------------------------------------
 
     print()
-
-    # -----------------------------------------------------------------
-    # Check checkpoint
-    # -----------------------------------------------------------------
-
-    if not CHECKPOINT.exists():
-
-        raise FileNotFoundError(
-            f"Checkpoint not found: "
-            f"{CHECKPOINT}"
-        )
-
-    all_results = []
-
-    # -----------------------------------------------------------------
-    # Scenario loop
-    # -----------------------------------------------------------------
-
-    for scenario in SCENARIOS:
-
-        print(
-            "-" * 78
-        )
-
-        print(
-            f"SCENARIO: "
-            f"{scenario['name']} "
-            f"→ expected "
-            f"{scenario['expected_status']}"
-        )
-
-        print(
-            "-" * 78
-        )
-
-        # -------------------------------------------------------------
-        # Seed loop
-        # -------------------------------------------------------------
-
-        for seed in SEEDS:
-
-            # Fresh checkpoint-backed SAC agent
-            agent = load_agent()
-
-            result = run_scenario(
-                agent=agent,
-                scenario=scenario,
-                seed=seed,
-            )
-
-            all_results.append(
-                result
-            )
-
-            print(
-                f"seed={seed} "
-                f"reward={result['total_reward']:.6f} "
-                f"trust={result['mean_trust']:.4f} "
-                f"risk={result['mean_risk']:.4f} "
-                f"ALLOW={result['allow_count']} "
-                f"CONSTRAIN={result['constrain_count']} "
-                f"BLOCK={result['block_count']} "
-                f"modified={result['modified_count']} "
-                f"delta={result['max_action_delta']:.4f}"
-            )
-
-    # -----------------------------------------------------------------
-    # Summary
-    # -----------------------------------------------------------------
-
-    summary = summarize(
-        all_results
-    )
-
-    # -----------------------------------------------------------------
-    # Machine-readable report
-    # -----------------------------------------------------------------
-
-    report = build_report(
-        all_results,
-        summary,
-    )
-
-    with open(
-        JSON_RESULT,
-        "w",
-        encoding="utf-8",
-    ) as f:
-
-        json.dump(
-            report,
-            f,
-            indent=2,
-        )
-
-    # -----------------------------------------------------------------
-    # Human-readable report
-    # -----------------------------------------------------------------
-
-    write_text_report(
-        summary
-    )
-
-    # -----------------------------------------------------------------
-    # Console summary
-    # -----------------------------------------------------------------
-
-    print()
+    print("REAL COMPONENTS:")
 
     print(
-        "=" * 78
+        "  TrustEngine        : REAL"
     )
 
     print(
-        "H5-B SUMMARY"
+        "  PolicyEngine       : REAL"
     )
 
     print(
-        "=" * 78
-    )
-
-    for (
-        name,
-        data,
-    ) in summary[
-        "scenario_summary"
-    ].items():
-
-        print(
-            f"{name:30s} "
-            f"expected={data['expected_status']:9s} "
-            f"ALLOW={data['allow_rate']:.1%} "
-            f"CONSTRAIN={data['constrain_rate']:.1%} "
-            f"BLOCK={data['block_rate']:.1%} "
-            f"modified={data['modification_rate']:.1%}"
-        )
-
-    print()
-
-    print(
-        "Branch accuracy: "
-        f"{summary['branch_accuracy']:.2%}"
+        "  RiskEngine         : REAL"
     )
 
     print(
-        "Overall modification rate: "
-        f"{summary['overall_modification_rate']:.2%}"
+        "  SafeEnvelope       : REAL"
+    )
+
+    print(
+        "  GovernanceEngine   : REAL"
     )
 
     print()
 
     print(
-        f"JSON report: "
-        f"{JSON_RESULT}"
+        "No artificial RiskAssessment injection is used."
+    )
+
+    # ------------------------------------------------------------------------
+    # Experimental control
+    # ------------------------------------------------------------------------
+
+    print()
+    print(
+        "CONTROL METHOD:"
     )
 
     print(
-        f"Text report: "
-        f"{TEXT_RESULT}"
+        "  Every operating point receives a fresh TrustEngine."
     )
 
+    print(
+        "  initial_trust = controlled environment trust."
+    )
+
+    print(
+        "  governance trust is independently verified."
+    )
+
+    print(
+        "  No post-execution trust update is performed."
+    )
+
+    print(
+        "  This is a PRE-EXECUTION operating-region benchmark."
+    )
+
+    # ------------------------------------------------------------------------
+    # Threshold report
+    # ------------------------------------------------------------------------
+
+    print_threshold_analysis()
+
+    # ------------------------------------------------------------------------
+    # Extreme cases
+    # ------------------------------------------------------------------------
+
+    extreme_pass = evaluate_extreme_cases()
+
+    # ------------------------------------------------------------------------
+    # Full grid
+    # ------------------------------------------------------------------------
+
     print()
+    print("=" * 78)
+    print("CONTROLLED OPERATING GRID")
+    print("=" * 78)
 
-    if summary["branch_accuracy"] == 1.0:
+    results = run_benchmark()
 
-        print(
-            "H5-B GOVERNANCE OPERATING-REGION "
-            "BENCHMARK PASSED"
+    # ------------------------------------------------------------------------
+    # Formula validation
+    # ------------------------------------------------------------------------
+
+    formula_pass = summarize_formula_validation(
+        results
+    )
+
+    # ------------------------------------------------------------------------
+    # Trust initialization
+    # ------------------------------------------------------------------------
+
+    trust_initialization_pass = (
+        summarize_trust_initialization(
+            results
         )
+    )
 
-    else:
+    # ------------------------------------------------------------------------
+    # Operating regions
+    # ------------------------------------------------------------------------
 
-        print(
-            "H5-B GOVERNANCE OPERATING-REGION "
-            "BENCHMARK COMPLETED WITH BRANCH MISMATCHES"
+    allow, constrain, block = summarize_regions(
+        results
+    )
+
+    # ------------------------------------------------------------------------
+    # Risk distribution
+    # ------------------------------------------------------------------------
+
+    summarize_risk_levels(
+        results
+    )
+
+    # ------------------------------------------------------------------------
+    # Risk range
+    # ------------------------------------------------------------------------
+
+    summarize_risk_range(
+        results
+    )
+
+    # ------------------------------------------------------------------------
+    # Risk × Governance cross-tab
+    # ------------------------------------------------------------------------
+
+    summarize_cross_tab(
+        results
+    )
+
+    # ------------------------------------------------------------------------
+    # Governance reasons
+    # ------------------------------------------------------------------------
+
+    summarize_reasons(
+        results
+    )
+
+    # ------------------------------------------------------------------------
+    # Policy distribution
+    # ------------------------------------------------------------------------
+
+    summarize_policy(
+        results
+    )
+
+    # ------------------------------------------------------------------------
+    # Governance branch validations
+    # ------------------------------------------------------------------------
+
+    constrain_pass = validate_constrain_region(
+        results
+    )
+
+    high_risk_pass = validate_high_risk_region(
+        results
+    )
+
+    low_trust_pass = validate_low_trust_region(
+        results
+    )
+
+    policy_precedence_pass = (
+        validate_policy_precedence(
+            results
         )
+    )
+
+    # ------------------------------------------------------------------------
+    # Final validation
+    # ------------------------------------------------------------------------
+
+    benchmark_passed = final_validation(
+        results=results,
+
+        formula_pass=(
+            formula_pass
+            and extreme_pass
+        ),
+
+        trust_initialization_pass=(
+            trust_initialization_pass
+        ),
+
+        allow=allow,
+
+        constrain=constrain,
+
+        block=block,
+
+        constrain_pass=constrain_pass,
+
+        high_risk_pass=high_risk_pass,
+
+        low_trust_pass=low_trust_pass,
+
+        policy_precedence_pass=(
+            policy_precedence_pass
+        ),
+    )
+
+    # ------------------------------------------------------------------------
+    # Process exit status
+    # ------------------------------------------------------------------------
+
+    if not benchmark_passed:
+
+        raise SystemExit(1)
 
 
 # ============================================================================
@@ -1721,5 +2411,5 @@ def main():
 # ============================================================================
 
 if __name__ == "__main__":
-
     main()
+

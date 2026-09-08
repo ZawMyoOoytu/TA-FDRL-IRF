@@ -1,0 +1,300 @@
+
+==============================================================================
+TA-FDRL-IRF H5-C GOVERNANCE CLOSED-LOOP BENCHMARK
+==============================================================================
+REAL COMPONENTS:
+  TrustEngine        : REAL
+  PolicyEngine       : REAL
+  RiskEngine         : REAL
+  SafeEnvelope       : REAL
+  GovernanceEngine   : REAL
+  IRFEnvironment     : REAL
+
+No artificial RiskAssessment injection is used.
+No SAC training is performed.
+No post-hoc governance status is fabricated.
+
+CONTROL METHOD:
+  Fresh REAL IRFEnvironment per scenario.
+  Fresh REAL GovernanceEngine per scenario.
+  Fresh REAL TrustEngine per scenario.
+  Real GovernanceEngine.evaluate().
+  Real IRFEnvironment.step().
+  Real TrustEngine.post_execution_feedback().
+  BLOCK candidate actions never execute.
+  BLOCK uses zero/safe fallback.
+  CONSTRAIN executes SafeEnvelope-modified action.
+  ALLOW executes governance decision action.
+  Trust feedback uses ACTUAL executed action.
+  Trust state is preserved across timesteps.
+  Next-step trust comes from REAL TrustEngine state.
+
+EXPECTED STATE DIMENSION : 100
+EXPECTED ACTION DIMENSION: 40
+NUM USERS                : 20
+STEPS / SCENARIO         : 20
+
+==============================================================================
+REAL ENVIRONMENT DISCOVERY
+==============================================================================
+Project root          : C:\Users\heart\TA-FDRL-IRF
+Experiments directory : C:\Users\heart\TA-FDRL-IRF\experiments
+IRFEnvironment        : FOUND
+IRFConfig             : FOUND
+Module                : environment.irf_env
+Environment class     : <class 'environment.irf_env.IRFEnvironment'>
+Running scenario: SAFE_ALLOW
+
+SCENARIO: SAFE_ALLOW
+  Seed                    : 101
+  Steps completed         : 20/20
+  ALLOW                   : 15
+  CONSTRAIN               : 0
+  BLOCK                   : 5
+  Candidate executions    : 15
+  Fallback executions     : 5
+  Action modifications    : 0
+  Feedback calls          : 20
+  Feedback successes      : 20
+  Feedback failures       : 0
+  Initial trust           : 1.000000
+  Final trust             : 0.538806
+  Total reward            : 6.215137
+  Mean reward             : 0.310757
+  Mean risk               : 0.129772
+  Maximum risk            : 0.204299
+  Environment steps       : 20
+  Environment failures    : 0
+  Trust history length    : 21
+  Action history length   : 20
+  Risk history length     : 20
+  Policy history length   : 20
+  Outcome history length  : 20
+  VALIDATION              : PASS
+Running scenario: MEDIUM_RISK_CONSTRAIN
+
+SCENARIO: MEDIUM_RISK_CONSTRAIN
+  Seed                    : 102
+  Steps completed         : 20/20
+  ALLOW                   : 0
+  CONSTRAIN               : 1
+  BLOCK                   : 19
+  Candidate executions    : 1
+  Fallback executions     : 19
+  Action modifications    : 1
+  Feedback calls          : 20
+  Feedback successes      : 20
+  Feedback failures       : 0
+  Initial trust           : 0.600000
+  Final trust             : 0.394551
+  Total reward            : 6.856819
+  Mean reward             : 0.342841
+  Mean risk               : 0.673283
+  Maximum risk            : 0.704325
+  Environment steps       : 20
+  Environment failures    : 0
+  Trust history length    : 21
+  Action history length   : 20
+  Risk history length     : 20
+  Policy history length   : 20
+  Outcome history length  : 20
+  VALIDATION              : PASS
+Running scenario: POLICY_BLOCK
+
+SCENARIO: POLICY_BLOCK
+  Seed                    : 103
+  Steps completed         : 20/20
+  ALLOW                   : 0
+  CONSTRAIN               : 0
+  BLOCK                   : 20
+  Candidate executions    : 0
+  Fallback executions     : 20
+  Action modifications    : 0
+  Feedback calls          : 20
+  Feedback successes      : 20
+  Feedback failures       : 0
+  Initial trust           : 1.000000
+  Final trust             : 0.343008
+  Total reward            : 6.976032
+  Mean reward             : 0.348802
+  Mean risk               : 0.536035
+  Maximum risk            : 0.640635
+  Environment steps       : 20
+  Environment failures    : 0
+  Trust history length    : 21
+  Action history length   : 20
+  Risk history length     : 20
+  Policy history length   : 20
+  Outcome history length  : 20
+  VALIDATION              : PASS
+Running scenario: LOW_TRUST_BLOCK
+
+SCENARIO: LOW_TRUST_BLOCK
+  Seed                    : 104
+  Steps completed         : 20/20
+  ALLOW                   : 0
+  CONSTRAIN               : 0
+  BLOCK                   : 20
+  Candidate executions    : 0
+  Fallback executions     : 20
+  Action modifications    : 0
+  Feedback calls          : 20
+  Feedback successes      : 20
+  Feedback failures       : 0
+  Initial trust           : 0.500000
+  Final trust             : 0.458938
+  Total reward            : 7.170345
+  Mean reward             : 0.358517
+  Mean risk               : 0.236627
+  Maximum risk            : 0.243165
+  Environment steps       : 20
+  Environment failures    : 0
+  Trust history length    : 21
+  Action history length   : 20
+  Risk history length     : 20
+  Policy history length   : 20
+  Outcome history length  : 20
+  VALIDATION              : PASS
+Running scenario: HIGH_RISK_BLOCK
+
+SCENARIO: HIGH_RISK_BLOCK
+  Seed                    : 105
+  Steps completed         : 20/20
+  ALLOW                   : 0
+  CONSTRAIN               : 0
+  BLOCK                   : 20
+  Candidate executions    : 0
+  Fallback executions     : 20
+  Action modifications    : 0
+  Feedback calls          : 20
+  Feedback successes      : 20
+  Feedback failures       : 0
+  Initial trust           : 0.000000
+  Final trust             : 0.295038
+  Total reward            : 7.048476
+  Mean reward             : 0.352424
+  Mean risk               : 0.799790
+  Maximum risk            : 0.883333
+  Environment steps       : 20
+  Environment failures    : 0
+  Trust history length    : 21
+  Action history length   : 20
+  Risk history length     : 20
+  Policy history length   : 20
+  Outcome history length  : 20
+  VALIDATION              : PASS
+Running scenario: MIXED_SEQUENCE
+
+SCENARIO: MIXED_SEQUENCE
+  Seed                    : 106
+  Steps completed         : 20/20
+  ALLOW                   : 7
+  CONSTRAIN               : 1
+  BLOCK                   : 12
+  Candidate executions    : 8
+  Fallback executions     : 12
+  Action modifications    : 1
+  Feedback calls          : 20
+  Feedback successes      : 20
+  Feedback failures       : 0
+  Initial trust           : 1.000000
+  Final trust             : 0.451116
+  Total reward            : 6.493140
+  Mean reward             : 0.324657
+  Mean risk               : 0.404577
+  Maximum risk            : 0.677229
+  Environment steps       : 20
+  Environment failures    : 0
+  Trust history length    : 21
+  Action history length   : 20
+  Risk history length     : 20
+  Policy history length   : 20
+  Outcome history length  : 20
+  VALIDATION              : PASS
+
+==============================================================================
+CLOSED-LOOP GOVERNANCE SUMMARY
+==============================================================================
+Total scenarios           : 6
+Total closed-loop steps   : 120
+ALLOW                     : 22
+CONSTRAIN                 : 2
+BLOCK                     : 96
+Candidate executions      : 24
+Fallback executions       : 96
+Environment executions    : 120
+Environment failures      : 0
+Trust feedback calls      : 120
+Trust feedback successes  : 120
+Trust feedback failures   : 0
+Total reward              : 40.759948
+ALLOW rate                : 18.33%
+CONSTRAIN rate            : 1.67%
+BLOCK rate                : 80.00%
+Candidate execution rate  : 20.00%
+Fallback execution rate   : 80.00%
+Feedback success rate     : 100.00%
+
+SCENARIO RESULTS
+------------------------------------------------------------------------------
+Scenario                        ALLOW   CONSTR    BLOCK     FB     PASS
+------------------------------------------------------------------------------
+SAFE_ALLOW                         15        0        5     20      YES
+MEDIUM_RISK_CONSTRAIN               0        1       19     20      YES
+POLICY_BLOCK                        0        0       20     20      YES
+LOW_TRUST_BLOCK                     0        0       20     20      YES
+HIGH_RISK_BLOCK                     0        0       20     20      YES
+MIXED_SEQUENCE                      7        1       12     20      YES
+
+==============================================================================
+CLOSED-LOOP INTEGRATION VALIDATION
+==============================================================================
+Scenarios checked        : 6
+Scenario validations     : 6/6
+
+ALLOW observations       : 22
+CONSTRAIN observations   : 2
+BLOCK observations       : 96
+[PASS] ALLOW closed-loop region observed
+[PASS] CONSTRAIN closed-loop region observed
+[PASS] BLOCK closed-loop region observed
+[PASS] BLOCK prevents candidate execution
+[PASS] BLOCK fallback accounting is consistent
+[PASS] BLOCK executes designated safe fallback
+[PASS] CONSTRAIN executes SafeEnvelope-modified action
+[PASS] ALLOW executes governance decision action
+[PASS] ALLOW candidate-to-decision numerical equivalence
+[PASS] Real IRF environment executed
+[PASS] Post-execution TrustEngine feedback integrated
+[PASS] Trust history records sequential feedback state
+[PASS] TrustEngine execution histories are complete
+[PASS] Sequential governance state preserved
+[PASS] All scenario-level validations passed
+
+RESULT                  : PASS
+
+==============================================================================
+FINAL H5-C VALIDATION
+==============================================================================
+Real GovernanceEngine       : PASS
+Real IRF execution          : PASS
+ALLOW gate                  : PASS
+CONSTRAIN gate              : PASS
+BLOCK gate                  : PASS
+Execution isolation         : PASS
+Fallback execution          : PASS
+Trust feedback integration  : PASS
+Trust history continuity    : PASS
+Trust execution histories   : PASS
+Sequential closed-loop state: PASS
+Runtime elapsed             : 0.377 seconds
+
+RESULT: H5-C GOVERNANCE CLOSED-LOOP BENCHMARK PASSED
+RESULT: REAL GOVERNANCE-TO-IRF EXECUTION PATH VALIDATED
+RESULT: ALLOW / CONSTRAIN / BLOCK EXECUTION GATE VALIDATED
+RESULT: BLOCKED CANDIDATE ACTION ISOLATION VALIDATED
+RESULT: SAFE-ENVELOPE CONSTRAINED EXECUTION VALIDATED
+RESULT: REAL POST-EXECUTION TRUST FEEDBACK VALIDATED
+RESULT: TRUST HISTORY CONTINUITY VALIDATED
+RESULT: TRUST EXECUTION HISTORIES VALIDATED
+RESULT: SEQUENTIAL CLOSED-LOOP STATE VALIDATED
