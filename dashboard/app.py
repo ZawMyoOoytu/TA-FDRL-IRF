@@ -1,7 +1,9 @@
+from __future__ import annotations
 
 from pathlib import Path
 import sys
 import time
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -22,9 +24,14 @@ if str(PROJECT_ROOT) not in sys.path:
 # PROJECT IMPORTS
 # ============================================================
 
-from environment.irf_env import IRFConfig, IRFEnvironment
-from agents.sac_agent import SACAgent
-from trust.governance import GovernanceEngine
+try:
+    from environment.irf_env import IRFConfig, IRFEnvironment
+    from agents.sac_agent import SACAgent
+    from trust.governance import GovernanceEngine
+except Exception as exc:
+    st.error("TA-FDRL-IRF project imports failed.")
+    st.exception(exc)
+    st.stop()
 
 
 # ============================================================
@@ -40,7 +47,34 @@ st.set_page_config(
 
 
 # ============================================================
-# CONSTANTS
+# RESEARCH CONFIGURATION
+# ============================================================
+
+PROJECT_NAME = "TA-FDRL-IRF"
+PHASE = "Phase-4B.1"
+
+NUM_USERS = 20
+NUM_RIS_ELEMENTS = 64
+
+STATE_DIM = 100
+ACTION_DIM = 40
+
+MAX_STEPS = 200
+
+BANDWIDTH_HZ = 100e6
+CARRIER_FREQUENCY_HZ = 28e9
+
+POLARIZATION_ENABLED = True
+POLARIZATION_STATE_ENABLED = False
+CROSS_POLARIZATION_FACTOR = 0.15
+
+RIS_OPTIMIZATION = False
+FIXED_TRUST = False
+ADAPTIVE_TRUST = True
+
+
+# ============================================================
+# CHECKPOINT
 # ============================================================
 
 CHECKPOINT_PATH = (
@@ -49,12 +83,6 @@ CHECKPOINT_PATH = (
     / "best_sac_irf_phase3_adaptive_trust"
     / "sac_phase3_adaptive_trust.pt"
 )
-
-NUM_USERS = 20
-NUM_RIS_ELEMENTS = 64
-STATE_DIM = 100
-ACTION_DIM = 40
-MAX_STEPS = 200
 
 
 # ============================================================
@@ -99,26 +127,70 @@ st.markdown(
 
 
 # ============================================================
-# DATAFRAME / ARROW SAFETY
+# SAFE NUMERIC HELPERS
+# ============================================================
+
+def safe_float(value: Any, default: float = 0.0) -> float:
+    """Convert scalar-like input to a finite float."""
+
+    try:
+        arr = np.asarray(value)
+
+        if arr.size == 0:
+            return float(default)
+
+        result = float(arr.reshape(-1)[0])
+
+        if not np.isfinite(result):
+            return float(default)
+
+        return result
+
+    except Exception:
+        return float(default)
+
+
+def safe_mean(value: Any, default: float = 0.0) -> float:
+    """Finite mean for scalar or array-like input."""
+
+    try:
+        arr = np.asarray(value, dtype=float)
+
+        if arr.size == 0:
+            return float(default)
+
+        arr = arr[np.isfinite(arr)]
+
+        if arr.size == 0:
+            return float(default)
+
+        return float(np.mean(arr))
+
+    except Exception:
+        return float(default)
+
+
+def safe_bool(value: Any, default: bool = False) -> bool:
+    """Safely convert a value to bool."""
+
+    try:
+        return bool(value)
+    except Exception:
+        return bool(default)
+
+
+# ============================================================
+# DATAFRAME SAFETY
 # ============================================================
 
 def arrow_safe_dataframe(
-    dataframe,
-    stringify_object_columns=False,
-):
+    dataframe: pd.DataFrame,
+    stringify_object_columns: bool = False,
+) -> pd.DataFrame:
     """
-    Return a Streamlit/PyArrow-compatible copy of a DataFrame.
+    Make DataFrame safe for Streamlit/PyArrow display.
 
-    This protects the dashboard from mixed Python/numpy object
-    types that can cause errors such as:
-
-        pyarrow.lib.ArrowTypeError:
-        Expected bytes, got a 'int' object
-
-    Numeric columns remain numeric by default.
-
-    Object columns can optionally be converted to strings for
-    display-only tables.
+    Mixed object columns can otherwise produce ArrowTypeError.
     """
 
     df = dataframe.copy()
@@ -127,11 +199,10 @@ def arrow_safe_dataframe(
 
         series = df[column]
 
-        # Convert numpy scalar/object values into ordinary Python
-        # scalar values where possible.
         if series.dtype == "object":
 
             if stringify_object_columns:
+
                 df[column] = series.map(
                     lambda value: ""
                     if value is None
@@ -139,28 +210,26 @@ def arrow_safe_dataframe(
                 )
 
             else:
-                # Try to preserve numeric columns if possible.
+
                 numeric = pd.to_numeric(
                     series,
                     errors="coerce",
                 )
 
                 if numeric.notna().all():
+
                     df[column] = numeric
 
                 else:
+
                     df[column] = series.map(
                         lambda value: ""
                         if value is None
                         else str(value)
                     )
 
-        elif pd.api.types.is_bool_dtype(series):
-            df[column] = series.astype(bool)
-
         elif pd.api.types.is_numeric_dtype(series):
-            # Normalize numpy numeric scalars to a regular numeric
-            # pandas representation.
+
             df[column] = pd.to_numeric(
                 series,
                 errors="coerce",
@@ -170,15 +239,11 @@ def arrow_safe_dataframe(
 
 
 def safe_display_dataframe(
-    dataframe,
+    dataframe: pd.DataFrame,
     *,
-    width="stretch",
-    hide_index=False,
-    stringify_object_columns=False,
-):
-    """
-    Centralized safe wrapper around st.dataframe().
-    """
+    hide_index: bool = False,
+    stringify_object_columns: bool = False,
+) -> None:
 
     safe_df = arrow_safe_dataframe(
         dataframe,
@@ -187,103 +252,69 @@ def safe_display_dataframe(
 
     st.dataframe(
         safe_df,
-        width=width,
+        width="stretch",
         hide_index=hide_index,
     )
 
 
 # ============================================================
-# UTILITY FUNCTIONS
+# RESET RESULT COMPATIBILITY
 # ============================================================
 
-def safe_float(value, default=0.0):
+def extract_state(reset_result: Any) -> np.ndarray:
     """
-    Convert scalar-like values safely to finite float.
-    """
+    Support:
 
-    try:
+        reset() -> state
 
-        arr = np.asarray(value)
+    and:
 
-        if arr.size == 0:
-            return float(default)
-
-        result = float(
-            arr.reshape(-1)[0]
-        )
-
-        if not np.isfinite(result):
-            return float(default)
-
-        return result
-
-    except Exception:
-
-        return float(default)
-
-
-def safe_mean(value, default=0.0):
-    """
-    Convert scalar/array-like values to finite mean.
+        reset() -> (state, info)
     """
 
-    try:
+    if isinstance(reset_result, tuple):
 
-        arr = np.asarray(
-            value,
-            dtype=float,
-        )
+        if len(reset_result) == 0:
+            raise ValueError("Environment reset returned an empty tuple.")
 
-        if arr.size == 0:
-            return float(default)
+        state = reset_result[0]
 
-        arr = arr[
-            np.isfinite(arr)
-        ]
+    else:
 
-        if arr.size == 0:
-            return float(default)
+        state = reset_result
 
-        return float(
-            np.mean(arr)
-        )
-
-    except Exception:
-
-        return float(default)
-
-
-def extract_state(reset_result):
-    """
-    Supports environments where reset() returns either:
-
-        state
-
-    or:
-
-        (state, info)
-    """
-
-    if isinstance(
-        reset_result,
-        tuple,
-    ):
-
-        return np.asarray(
-            reset_result[0],
-            dtype=np.float32,
-        )
-
-    return np.asarray(
-        reset_result,
+    state = np.asarray(
+        state,
         dtype=np.float32,
-    )
+    ).reshape(-1)
+
+    validate_state(state)
+
+    return state
 
 
-def normalize_action(action):
-    """
-    Ensure SAC action is a finite 1-D vector of ACTION_DIM.
-    """
+# ============================================================
+# STATE / ACTION VALIDATION
+# ============================================================
+
+def validate_state(state: np.ndarray) -> None:
+
+    if state.size != STATE_DIM:
+
+        raise ValueError(
+            "State dimension mismatch: "
+            f"expected {STATE_DIM}, "
+            f"got {state.size}"
+        )
+
+    if not np.all(np.isfinite(state)):
+
+        raise ValueError(
+            "Environment returned non-finite state values."
+        )
+
+
+def normalize_action(action: Any) -> np.ndarray:
 
     action = np.asarray(
         action,
@@ -293,14 +324,12 @@ def normalize_action(action):
     if action.size != ACTION_DIM:
 
         raise ValueError(
-            f"SAC action dimension mismatch: "
+            "SAC action dimension mismatch: "
             f"expected {ACTION_DIM}, "
             f"got {action.size}"
         )
 
-    if not np.all(
-        np.isfinite(action)
-    ):
+    if not np.all(np.isfinite(action)):
 
         raise ValueError(
             "SAC produced non-finite action values."
@@ -313,10 +342,7 @@ def normalize_action(action):
     )
 
 
-def zero_action():
-    """
-    Safe fallback for governance BLOCK.
-    """
+def zero_action() -> np.ndarray:
 
     return np.zeros(
         ACTION_DIM,
@@ -328,8 +354,8 @@ def zero_action():
 # ENVIRONMENT
 # ============================================================
 
-@st.cache_resource
-def create_environment(seed=42):
+@st.cache_resource(show_spinner=False)
+def create_environment(seed: int = 42):
 
     config = IRFConfig(
 
@@ -339,15 +365,20 @@ def create_environment(seed=42):
 
         num_users=NUM_USERS,
         num_ris_elements=NUM_RIS_ELEMENTS,
-        bandwidth_hz=100e6,
-        carrier_frequency_hz=28e9,
+
+        bandwidth_hz=BANDWIDTH_HZ,
+        carrier_frequency_hz=CARRIER_FREQUENCY_HZ,
 
         # ----------------------------------------------------
         # Polarization-aware PHY
         # ----------------------------------------------------
 
-        polarization_enabled=True,
-        cross_polarization_factor=0.15,
+        polarization_enabled=POLARIZATION_ENABLED,
+
+        cross_polarization_factor=(
+            CROSS_POLARIZATION_FACTOR
+        ),
+
         polarization_v_strength=1.0,
         polarization_h_strength=1.0,
 
@@ -357,6 +388,7 @@ def create_environment(seed=42):
 
         max_power_w=1.0,
         circuit_power_w=0.1,
+
         noise_figure_db=7.0,
         noise_density_dbm_hz=-174.0,
 
@@ -365,11 +397,12 @@ def create_environment(seed=42):
         # ----------------------------------------------------
 
         max_steps=MAX_STEPS,
-        optimize_ris=False,
-        fixed_trust=False,
+
+        optimize_ris=RIS_OPTIMIZATION,
+        fixed_trust=FIXED_TRUST,
 
         # ----------------------------------------------------
-        # Trust model
+        # Trust
         # ----------------------------------------------------
 
         trust_memory=0.90,
@@ -407,21 +440,25 @@ def create_environment(seed=42):
         seed=int(seed),
     )
 
-    return IRFEnvironment(config)
+    env = IRFEnvironment(config)
+
+    return env
 
 
 # ============================================================
 # SAC AGENT
 # ============================================================
 
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def create_agent():
 
     if not CHECKPOINT_PATH.exists():
 
         raise FileNotFoundError(
-            f"SAC checkpoint not found:\n"
-            f"{CHECKPOINT_PATH}"
+            "SAC checkpoint not found:\n"
+            f"{CHECKPOINT_PATH}\n\n"
+            "Make sure the checkpoint is committed to GitHub "
+            "and included in the Render deployment."
         )
 
     agent = SACAgent(
@@ -453,39 +490,116 @@ def create_agent():
 # GOVERNANCE
 # ============================================================
 
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def create_governance():
 
     return GovernanceEngine()
 
 
 # ============================================================
+# GOVERNANCE HELPERS
+# ============================================================
+
+def get_decision_field(
+    decision: Any,
+    name: str,
+    default: Any = None,
+) -> Any:
+    """
+    Read either object attributes or dictionary keys.
+    """
+
+    if decision is None:
+        return default
+
+    if isinstance(decision, dict):
+
+        return decision.get(
+            name,
+            default,
+        )
+
+    return getattr(
+        decision,
+        name,
+        default,
+    )
+
+
+def governance_status(decision: Any) -> str:
+
+    status = get_decision_field(
+        decision,
+        "status",
+        None,
+    )
+
+    if status is None:
+
+        status = get_decision_field(
+            decision,
+            "decision",
+            None,
+        )
+
+    if status is None:
+
+        status = get_decision_field(
+            decision,
+            "governance",
+            "UNKNOWN",
+        )
+
+    return str(
+        status
+    ).upper()
+
+
+def governance_action(
+    decision: Any,
+    proposed_action: np.ndarray,
+) -> np.ndarray:
+    """
+    Extract governed action if the governance engine provides one.
+
+    Otherwise preserve the SAC proposal.
+    """
+
+    action = get_decision_field(
+        decision,
+        "action",
+        None,
+    )
+
+    if action is None:
+
+        action = proposed_action
+
+    return normalize_action(
+        action
+    )
+
+
+# ============================================================
 # TELEMETRY FROM STATE
 # ============================================================
 
-def telemetry_from_state(state):
+def telemetry_from_state(
+    state: np.ndarray,
+) -> dict[str, float]:
 
-    state = np.asarray(
-        state,
-        dtype=np.float32,
-    ).reshape(-1)
-
-    if state.size != STATE_DIM:
-
-        raise ValueError(
-            f"State dimension mismatch: "
-            f"expected {STATE_DIM}, "
-            f"got {state.size}"
-        )
+    validate_state(state)
 
     users = state.reshape(
         NUM_USERS,
         5,
     )
 
-    # State layout:
+    # --------------------------------------------------------
+    # Phase-4B.1 state:
     #
     # [SINR, interference, queue, power, trust]
+    # --------------------------------------------------------
 
     sinr = users[:, 0]
     interference = users[:, 1]
@@ -495,132 +609,146 @@ def telemetry_from_state(state):
 
     return {
 
-        "mean_sinr": safe_mean(
-            sinr
-        ),
+        "mean_sinr":
+            safe_mean(sinr),
 
-        "mean_interference": safe_mean(
-            interference
-        ),
-
-        "mean_queue": safe_mean(
-            queue
-        ),
-
-        "mean_power": safe_mean(
-            power
-        ),
-
-        "mean_trust": safe_mean(
-            trust
-        ),
-
-        # Normalized telemetry for governance risk.
-        "queue": np.clip(
-            safe_mean(queue),
-            0.0,
-            1.0,
-        ),
-
-        "interference": np.clip(
+        "mean_interference":
             safe_mean(interference),
-            0.0,
-            1.0,
-        ),
+
+        "mean_queue":
+            safe_mean(queue),
+
+        "mean_power":
+            safe_mean(power),
+
+        "mean_trust":
+            safe_mean(trust),
+
+        "queue":
+            float(
+                np.clip(
+                    safe_mean(queue),
+                    0.0,
+                    1.0,
+                )
+            ),
+
+        "interference":
+            float(
+                np.clip(
+                    safe_mean(interference),
+                    0.0,
+                    1.0,
+                )
+            ),
     }
 
 
 # ============================================================
-# TELEMETRY FROM ENVIRONMENT
+# ENVIRONMENT TELEMETRY
 # ============================================================
 
 def get_environment_telemetry(
-    env,
-    info=None,
-):
+    env: Any,
+    info: Any = None,
+) -> dict[str, float]:
 
-    info = info or {}
+    if not isinstance(info, dict):
+        info = {}
 
     telemetry = {
 
-        "mean_sinr": safe_mean(
-            getattr(
-                env,
-                "sinr",
-                0.0,
-            )
-        ),
+        "mean_sinr":
+            safe_mean(
+                getattr(
+                    env,
+                    "sinr",
+                    0.0,
+                )
+            ),
 
-        "mean_interference": safe_mean(
-            getattr(
-                env,
-                "interference",
-                0.0,
-            )
-        ),
+        "mean_interference":
+            safe_mean(
+                getattr(
+                    env,
+                    "interference",
+                    0.0,
+                )
+            ),
 
-        "mean_queue": safe_mean(
-            getattr(
-                env,
-                "queue",
-                0.0,
-            )
-        ),
+        "mean_queue":
+            safe_mean(
+                getattr(
+                    env,
+                    "queue",
+                    0.0,
+                )
+            ),
 
-        "mean_power": safe_mean(
-            getattr(
-                env,
-                "power",
-                0.0,
-            )
-        ),
+        "mean_power":
+            safe_mean(
+                getattr(
+                    env,
+                    "power",
+                    0.0,
+                )
+            ),
 
-        "mean_trust": safe_mean(
-            getattr(
-                env,
-                "trust",
-                0.0,
-            )
-        ),
+        "mean_trust":
+            safe_mean(
+                getattr(
+                    env,
+                    "trust",
+                    0.0,
+                )
+            ),
     }
 
     # --------------------------------------------------------
-    # Prefer explicit info values when available
+    # Prefer explicit environment info
     # --------------------------------------------------------
 
-    if isinstance(
-        info,
-        dict,
+    for key in (
+        "spectral_efficiency",
+        "energy_efficiency",
+        "trust",
+        "risk",
+        "reward",
+        "mean_sinr",
+        "mean_interference",
+        "mean_queue",
+        "mean_power",
+        "mean_trust",
+        "pqi",
+        "xpi",
+        "mean_pqi",
+        "mean_xpi",
     ):
 
-        for key in (
-            "spectral_efficiency",
-            "energy_efficiency",
-            "trust",
-            "risk",
-            "reward",
-        ):
+        if key in info:
 
-            if key in info:
+            telemetry[key] = safe_float(
+                info[key],
+                telemetry.get(
+                    key,
+                    0.0,
+                ),
+            )
 
-                telemetry[key] = safe_float(
-                    info[key],
-                    telemetry.get(
-                        key,
-                        0.0,
-                    ),
-                )
-
-    telemetry["queue"] = np.clip(
-        telemetry["mean_queue"],
-        0.0,
-        1.0,
+    telemetry["queue"] = float(
+        np.clip(
+            telemetry["mean_queue"],
+            0.0,
+            1.0,
+        )
     )
 
-    telemetry["interference"] = np.clip(
-        telemetry["mean_interference"],
-        0.0,
-        1.0,
+    telemetry["interference"] = float(
+        np.clip(
+            telemetry["mean_interference"],
+            0.0,
+            1.0,
+        )
     )
 
     return telemetry
@@ -631,15 +759,28 @@ def get_environment_telemetry(
 # ============================================================
 
 def run_step(
-    env,
-    agent,
-    governance,
-    state,
+    env: Any,
+    agent: Any,
+    governance: Any,
+    state: np.ndarray,
 ):
+    """
+    Closed-loop execution:
 
-    # --------------------------------------------------------
-    # 1. SAC proposes action
-    # --------------------------------------------------------
+        SAC
+          ↓
+        Governance
+          ↓
+        IRF
+          ↓
+        Telemetry
+    """
+
+    validate_state(state)
+
+    # ========================================================
+    # 1. SAC
+    # ========================================================
 
     proposed_action = agent.select_action(
         state,
@@ -650,9 +791,9 @@ def run_step(
         proposed_action
     )
 
-    # --------------------------------------------------------
-    # 2. Current state telemetry
-    # --------------------------------------------------------
+    # ========================================================
+    # 2. Current telemetry
+    # ========================================================
 
     state_telemetry = telemetry_from_state(
         state
@@ -667,9 +808,9 @@ def run_step(
         state_telemetry["mean_trust"],
     )
 
-    # --------------------------------------------------------
-    # 3. Governance decision
-    # --------------------------------------------------------
+    # ========================================================
+    # 3. Governance
+    # ========================================================
 
     decision = governance.evaluate(
         proposed_action,
@@ -677,49 +818,79 @@ def run_step(
         telemetry=state_telemetry,
     )
 
-    # --------------------------------------------------------
+    status = governance_status(
+        decision
+    )
+
+    # ========================================================
     # 4. Enforcement
+    # ========================================================
+
+    # --------------------------------------------------------
+    # ALLOW
     # --------------------------------------------------------
 
-    status = str(
-        getattr(
-            decision,
-            "status",
-            "UNKNOWN",
-        )
-    ).upper()
+    if status == "ALLOW":
 
-    if status == "BLOCK":
+        executed_action = governance_action(
+            decision,
+            proposed_action,
+        )
+
+        block_fallback = False
+        execution_allowed = True
+
+    # --------------------------------------------------------
+    # CONSTRAIN
+    #
+    # Existing TA-FDRL-IRF runtime uses this state as a
+    # governed safe-envelope intervention.
+    # --------------------------------------------------------
+
+    elif status == "CONSTRAIN":
+
+        executed_action = governance_action(
+            decision,
+            proposed_action,
+        )
+
+        block_fallback = False
+        execution_allowed = True
+
+    # --------------------------------------------------------
+    # BLOCK / REVIEW / REJECT
+    #
+    # These states must not directly execute the proposed
+    # autonomous action.
+    # --------------------------------------------------------
+
+    else:
 
         executed_action = zero_action()
 
         block_fallback = True
+        execution_allowed = False
 
-    else:
-
-        executed_action = normalize_action(
-            getattr(
-                decision,
-                "action",
-                proposed_action,
-            )
-        )
-
-        block_fallback = False
-
-    # --------------------------------------------------------
-    # 5. Execute action in IRF
-    # --------------------------------------------------------
+    # ========================================================
+    # 5. IRF execution
+    # ========================================================
 
     result = env.step(
         executed_action
     )
 
+    if not isinstance(result, tuple):
+
+        raise ValueError(
+            "IRFEnvironment.step() must return a tuple."
+        )
+
     if len(result) != 5:
 
         raise ValueError(
             "IRFEnvironment.step() must return "
-            "(next_state, reward, terminated, truncated, info)."
+            "(next_state, reward, terminated, truncated, info). "
+            f"Received {len(result)} values."
         )
 
     (
@@ -735,18 +906,24 @@ def run_step(
         dtype=np.float32,
     ).reshape(-1)
 
-    # --------------------------------------------------------
-    # 6. Actual environment telemetry
-    # --------------------------------------------------------
-
-    actual_telemetry = get_environment_telemetry(
-        env,
-        info,
+    validate_state(
+        next_state
     )
 
-    # --------------------------------------------------------
-    # 7. Extract metrics
-    # --------------------------------------------------------
+    # ========================================================
+    # 6. Environment telemetry
+    # ========================================================
+
+    actual_telemetry = (
+        get_environment_telemetry(
+            env,
+            info,
+        )
+    )
+
+    # ========================================================
+    # 7. Metrics
+    # ========================================================
 
     reward_value = safe_float(
         reward
@@ -755,29 +932,28 @@ def run_step(
     spectral_efficiency = safe_float(
         info.get(
             "spectral_efficiency",
-            0.0,
+            actual_telemetry.get(
+                "spectral_efficiency",
+                0.0,
+            ),
         )
-        if isinstance(
-            info,
-            dict,
-        )
+        if isinstance(info, dict)
         else 0.0
     )
 
     energy_efficiency = safe_float(
         info.get(
             "energy_efficiency",
-            0.0,
+            actual_telemetry.get(
+                "energy_efficiency",
+                0.0,
+            ),
         )
-        if isinstance(
-            info,
-            dict,
-        )
+        if isinstance(info, dict)
         else 0.0
     )
 
     trust_value = safe_float(
-
         info.get(
             "trust",
             getattr(
@@ -788,10 +964,7 @@ def run_step(
                 ],
             ),
         )
-        if isinstance(
-            info,
-            dict,
-        )
+        if isinstance(info, dict)
         else getattr(
             env,
             "trust",
@@ -801,75 +974,108 @@ def run_step(
         )
     )
 
-    # --------------------------------------------------------
-    # 8. Action enforcement statistics
-    # --------------------------------------------------------
+    # ========================================================
+    # 8. Governance statistics
+    # ========================================================
 
     action_delta = np.abs(
         proposed_action
         - executed_action
     )
 
-    max_action_delta = float(
+    max_action_delta = safe_float(
         np.max(action_delta)
     )
 
-    mean_action_delta = float(
+    mean_action_delta = safe_float(
         np.mean(action_delta)
     )
 
-    modified = bool(
-        getattr(
-            decision,
-            "modified",
-            max_action_delta > 1e-8,
-        )
+    modified_default = (
+        max_action_delta > 1e-8
     )
 
-    policy_allowed = bool(
-        getattr(
+    modified = safe_bool(
+        get_decision_field(
+            decision,
+            "modified",
+            modified_default,
+        ),
+        modified_default,
+    )
+
+    policy_allowed = safe_bool(
+        get_decision_field(
             decision,
             "policy",
-            True,
-        )
+            execution_allowed,
+        ),
+        execution_allowed,
     )
 
     risk_score = safe_float(
-        getattr(
+        get_decision_field(
             decision,
             "risk",
             info.get(
                 "risk",
                 0.0,
             )
-            if isinstance(
-                info,
-                dict,
-            )
+            if isinstance(info, dict)
             else 0.0,
         )
     )
 
     reason = str(
-        getattr(
+        get_decision_field(
             decision,
             "reason",
             "",
         )
+        or ""
+    )
+
+    # ========================================================
+    # 9. Polarization diagnostics
+    # ========================================================
+
+    pqi = safe_float(
+        info.get(
+            "pqi",
+            info.get(
+                "mean_pqi",
+                0.0,
+            ),
+        )
+        if isinstance(info, dict)
+        else 0.0
+    )
+
+    xpi = safe_float(
+        info.get(
+            "xpi",
+            info.get(
+                "mean_xpi",
+                0.0,
+            ),
+        )
+        if isinstance(info, dict)
+        else 0.0
     )
 
     return (
-
         next_state,
-
         {
             "step": 0,
 
-            "reward": reward_value,
+            "reward":
+                reward_value,
 
-            "trust": trust_value,
+            "trust":
+                trust_value,
 
-            "risk": risk_score,
+            "risk":
+                risk_score,
 
             "spectral_efficiency":
                 spectral_efficiency,
@@ -897,9 +1103,11 @@ def run_step(
                     "mean_power"
                 ],
 
-            "governance": status,
+            "governance":
+                status,
 
-            "reason": reason,
+            "reason":
+                reason,
 
             "policy_allowed":
                 policy_allowed,
@@ -910,17 +1118,30 @@ def run_step(
             "block_fallback":
                 block_fallback,
 
+            "execution_allowed":
+                execution_allowed,
+
             "max_action_delta":
                 max_action_delta,
 
             "mean_action_delta":
                 mean_action_delta,
 
+            "pqi":
+                pqi,
+
+            "xpi":
+                xpi,
+
             "terminated":
-                bool(terminated),
+                safe_bool(
+                    terminated
+                ),
 
             "truncated":
-                bool(truncated),
+                safe_bool(
+                    truncated
+                ),
         },
     )
 
@@ -929,26 +1150,23 @@ def run_step(
 # SESSION STATE
 # ============================================================
 
-if "env" not in st.session_state:
-    st.session_state.env = None
+DEFAULT_SESSION = {
+    "env": None,
+    "agent": None,
+    "governance": None,
+    "state": None,
+    "history": [],
+    "running": False,
+    "runtime_ready": False,
+    "active_seed": None,
+}
 
-if "agent" not in st.session_state:
-    st.session_state.agent = None
 
-if "governance" not in st.session_state:
-    st.session_state.governance = None
+for key, value in DEFAULT_SESSION.items():
 
-if "state" not in st.session_state:
-    st.session_state.state = None
+    if key not in st.session_state:
 
-if "history" not in st.session_state:
-    st.session_state.history = []
-
-if "running" not in st.session_state:
-    st.session_state.running = False
-
-if "runtime_ready" not in st.session_state:
-    st.session_state.runtime_ready = False
+        st.session_state[key] = value
 
 
 # ============================================================
@@ -961,7 +1179,7 @@ st.markdown(
 )
 
 st.markdown(
-    """
+    f"""
     <div class="subtitle">
     Trust-Aware Adaptive Federated Deep Reinforcement Learning
     for Intelligent Radio Fabric in 6G Networks
@@ -971,8 +1189,9 @@ st.markdown(
 )
 
 st.caption(
-    "Live closed-loop research simulation: "
-    "SAC → Governance → IRF → Telemetry → SAC"
+    f"{PHASE} • "
+    "Live closed-loop research simulation • "
+    "SAC → Governance → IRF → Telemetry"
 )
 
 
@@ -1009,10 +1228,6 @@ with st.sidebar:
 
     st.divider()
 
-    st.subheader(
-        "Runtime"
-    )
-
     start_reset = st.button(
         "▶️ Start / Reset",
         width="stretch",
@@ -1031,6 +1246,20 @@ with st.sidebar:
     clear_history = st.button(
         "🧹 Clear History",
         width="stretch",
+    )
+
+    st.divider()
+
+    st.caption(
+        f"Phase: {PHASE}"
+    )
+
+    st.caption(
+        f"State: {STATE_DIM}"
+    )
+
+    st.caption(
+        f"Action: {ACTION_DIM}"
     )
 
 
@@ -1052,7 +1281,15 @@ try:
             create_governance()
         )
 
-    if st.session_state.env is None:
+    # --------------------------------------------------------
+    # Environment is recreated when the selected seed changes.
+    # --------------------------------------------------------
+
+    if (
+        st.session_state.env is None
+        or st.session_state.active_seed
+        != int(seed_value)
+    ):
 
         st.session_state.env = (
             create_environment(
@@ -1060,7 +1297,25 @@ try:
             )
         )
 
-    if st.session_state.state is None:
+        reset_result = (
+            st.session_state.env.reset(
+                seed=int(seed_value)
+            )
+        )
+
+        st.session_state.state = (
+            extract_state(
+                reset_result
+            )
+        )
+
+        st.session_state.history = []
+
+        st.session_state.active_seed = (
+            int(seed_value)
+        )
+
+    elif st.session_state.state is None:
 
         reset_result = (
             st.session_state.env.reset(
@@ -1081,7 +1336,7 @@ except Exception as exc:
     st.session_state.runtime_ready = False
 
     st.error(
-        "Runtime initialization failed."
+        "❌ Runtime initialization failed."
     )
 
     st.exception(exc)
@@ -1117,6 +1372,10 @@ if start_reset:
 
     st.session_state.running = True
 
+    st.session_state.active_seed = (
+        int(seed_value)
+    )
+
     st.rerun()
 
 
@@ -1151,12 +1410,17 @@ if st.session_state.runtime_ready:
 
 
 # ============================================================
+# CURRENT HISTORY
+# ============================================================
+
+history = st.session_state.history
+
+
+# ============================================================
 # SYSTEM METRICS
 # ============================================================
 
 col1, col2, col3, col4, col5 = st.columns(5)
-
-history = st.session_state.history
 
 if history:
 
@@ -1216,38 +1480,54 @@ else:
 
 
 # ============================================================
-# LIVE CONTROL EXECUTION
+# RUN ONE STEP
 # ============================================================
 
 if one_step:
 
-    next_state, record = run_step(
+    try:
 
-        st.session_state.env,
+        next_state, record = run_step(
 
-        st.session_state.agent,
-
-        st.session_state.governance,
-
-        st.session_state.state,
-    )
-
-    record["step"] = (
-        len(
-            st.session_state.history
+            st.session_state.env,
+            st.session_state.agent,
+            st.session_state.governance,
+            st.session_state.state,
         )
-        + 1
-    )
 
-    st.session_state.state = (
-        next_state
-    )
+        record["step"] = (
+            len(
+                st.session_state.history
+            )
+            + 1
+        )
 
-    st.session_state.history.append(
-        record
-    )
+        st.session_state.state = (
+            next_state
+        )
 
-    st.rerun()
+        st.session_state.history.append(
+            record
+        )
+
+        st.session_state.running = True
+
+        if (
+            record["terminated"]
+            or record["truncated"]
+        ):
+
+            st.session_state.running = False
+
+        st.rerun()
+
+    except Exception as exc:
+
+        st.error(
+            "One-step execution failed."
+        )
+
+        st.exception(exc)
 
 
 # ============================================================
@@ -1256,72 +1536,83 @@ if one_step:
 
 if full_episode:
 
-    st.session_state.env = (
-        create_environment(
-            int(seed_value)
-        )
-    )
+    try:
 
-    reset_result = (
-        st.session_state.env.reset(
-            seed=int(seed_value)
-        )
-    )
-
-    state = extract_state(
-        reset_result
-    )
-
-    st.session_state.history = []
-
-    progress = st.progress(
-        0.0
-    )
-
-    for step in range(
-        MAX_STEPS
-    ):
-
-        next_state, record = run_step(
-
-            st.session_state.env,
-
-            st.session_state.agent,
-
-            st.session_state.governance,
-
-            state,
+        st.session_state.env = (
+            create_environment(
+                int(seed_value)
+            )
         )
 
-        record["step"] = (
-            step + 1
+        reset_result = (
+            st.session_state.env.reset(
+                seed=int(seed_value)
+            )
         )
 
-        st.session_state.history.append(
-            record
+        state = extract_state(
+            reset_result
         )
 
-        state = next_state
+        st.session_state.history = []
 
-        progress.progress(
-            (step + 1)
-            / MAX_STEPS
+        progress = st.progress(
+            0.0
         )
 
-        if (
-            record["terminated"]
-            or record["truncated"]
+        for step in range(
+            MAX_STEPS
         ):
 
-            break
+            next_state, record = run_step(
 
-    st.session_state.state = (
-        state
-    )
+                st.session_state.env,
+                st.session_state.agent,
+                st.session_state.governance,
+                state,
+            )
 
-    st.session_state.running = False
+            record["step"] = (
+                step + 1
+            )
 
-    st.rerun()
+            st.session_state.history.append(
+                record
+            )
+
+            state = next_state
+
+            progress.progress(
+                (step + 1)
+                / MAX_STEPS
+            )
+
+            if (
+                record["terminated"]
+                or record["truncated"]
+            ):
+
+                break
+
+        st.session_state.state = (
+            state
+        )
+
+        st.session_state.running = False
+
+        st.session_state.active_seed = (
+            int(seed_value)
+        )
+
+        st.rerun()
+
+    except Exception as exc:
+
+        st.error(
+            "Full episode execution failed."
+        )
+
+        st.exception(exc)
 
 
 # ============================================================
@@ -1354,11 +1645,15 @@ if history:
             f"{latest['reason'] or 'Safe envelope applied'}"
         )
 
-    elif decision_status == "BLOCK":
+    elif decision_status in (
+        "BLOCK",
+        "REVIEW",
+        "REJECT",
+    ):
 
         st.error(
-            f"BLOCK — "
-            f"{latest['reason'] or 'Governance policy blocked action'}"
+            f"{decision_status} — "
+            f"{latest['reason'] or 'Direct execution prevented'}"
         )
 
     else:
@@ -1369,15 +1664,17 @@ if history:
 
     d1, d2, d3, d4 = st.columns(4)
 
+    risk_level = (
+        "HIGH"
+        if latest["risk"] >= 0.8
+        else "MEDIUM"
+        if latest["risk"] >= 0.5
+        else "LOW"
+    )
+
     d1.metric(
         "Risk Level",
-        (
-            "HIGH"
-            if latest["risk"] >= 0.8
-            else "MEDIUM"
-            if latest["risk"] >= 0.5
-            else "LOW"
-        ),
+        risk_level,
     )
 
     d2.metric(
@@ -1403,7 +1700,12 @@ if history:
     )
 
     st.write(
-        f"**BLOCK Fallback:** "
+        f"**Execution Allowed:** "
+        f"{latest['execution_allowed']}"
+    )
+
+    st.write(
+        f"**BLOCK/Non-execution Fallback:** "
         f"{latest['block_fallback']}"
     )
 
@@ -1429,13 +1731,18 @@ if history:
         history
     )
 
-    tab1, tab2, tab3 = st.tabs(
+    tab1, tab2, tab3, tab4 = st.tabs(
         [
             "Performance",
             "Trust & Risk",
             "Network",
+            "Polarization",
         ]
     )
+
+    # ========================================================
+    # PERFORMANCE
+    # ========================================================
 
     with tab1:
 
@@ -1449,14 +1756,10 @@ if history:
             "step"
         )
 
-        performance_df = (
+        st.line_chart(
             arrow_safe_dataframe(
                 performance_df
-            )
-        )
-
-        st.line_chart(
-            performance_df,
+            ),
             width="stretch",
         )
 
@@ -1469,16 +1772,16 @@ if history:
             "step"
         )
 
-        ee_df = (
+        st.line_chart(
             arrow_safe_dataframe(
                 ee_df
-            )
-        )
-
-        st.line_chart(
-            ee_df,
+            ),
             width="stretch",
         )
+
+    # ========================================================
+    # TRUST / RISK
+    # ========================================================
 
     with tab2:
 
@@ -1492,16 +1795,16 @@ if history:
             "step"
         )
 
-        trust_risk_df = (
+        st.line_chart(
             arrow_safe_dataframe(
                 trust_risk_df
-            )
-        )
-
-        st.line_chart(
-            trust_risk_df,
+            ),
             width="stretch",
         )
+
+    # ========================================================
+    # NETWORK
+    # ========================================================
 
     with tab3:
 
@@ -1517,15 +1820,56 @@ if history:
             "step"
         )
 
-        network_df = (
+        st.line_chart(
             arrow_safe_dataframe(
                 network_df
-            )
+            ),
+            width="stretch",
         )
 
-        st.line_chart(
-            network_df,
-            width="stretch",
+    # ========================================================
+    # POLARIZATION
+    # ========================================================
+
+    with tab4:
+
+        polarization_df = df[
+            [
+                "step",
+                "pqi",
+                "xpi",
+            ]
+        ].set_index(
+            "step"
+        )
+
+        if (
+            polarization_df["pqi"].abs().sum()
+            > 0
+            or polarization_df["xpi"].abs().sum()
+            > 0
+        ):
+
+            st.line_chart(
+                arrow_safe_dataframe(
+                    polarization_df
+                ),
+                width="stretch",
+            )
+
+        else:
+
+            st.info(
+                "PQI/XPI diagnostics are not exposed "
+                "through the current environment info "
+                "during this runtime session."
+            )
+
+        st.caption(
+            "Phase-4B.1: polarization diagnostics are "
+            "observational. PQI/XPI are not included in "
+            "the SAC state because polarization_state_enabled "
+            "is disabled."
         )
 
 else:
@@ -1574,10 +1918,24 @@ if history:
         ).sum()
     )
 
-    g1, g2, g3, g4 = st.columns(4)
+    review_count = int(
+        (
+            df["governance"]
+            == "REVIEW"
+        ).sum()
+    )
+
+    reject_count = int(
+        (
+            df["governance"]
+            == "REJECT"
+        ).sum()
+    )
+
+    g1, g2, g3, g4, g5 = st.columns(5)
 
     g1.metric(
-        "Total Decisions",
+        "Total",
         total_decisions,
     )
 
@@ -1594,6 +1952,11 @@ if history:
     g4.metric(
         "BLOCK",
         block_count,
+    )
+
+    g5.metric(
+        "REVIEW / REJECT",
+        review_count + reject_count,
     )
 
 else:
@@ -1625,11 +1988,15 @@ if history:
         df["block_fallback"].sum()
     )
 
-    max_delta = float(
+    max_delta = safe_float(
         df["max_action_delta"].max()
     )
 
-    e1, e2, e3 = st.columns(3)
+    mean_delta = safe_float(
+        df["mean_action_delta"].mean()
+    )
+
+    e1, e2, e3, e4 = st.columns(4)
 
     e1.metric(
         "Modified Decisions",
@@ -1637,13 +2004,18 @@ if history:
     )
 
     e2.metric(
-        "BLOCK Fallbacks",
+        "Non-execution Fallbacks",
         fallback_count,
     )
 
     e3.metric(
         "Maximum Action Δ",
         f"{max_delta:.4f}",
+    )
+
+    e4.metric(
+        "Mean Action Δ",
+        f"{mean_delta:.4f}",
     )
 
     enforcement_df = df[
@@ -1656,14 +2028,10 @@ if history:
         "step"
     )
 
-    enforcement_df = (
+    st.line_chart(
         arrow_safe_dataframe(
             enforcement_df
-        )
-    )
-
-    st.line_chart(
-        enforcement_df,
+        ),
         width="stretch",
     )
 
@@ -1679,7 +2047,7 @@ else:
 # ============================================================
 
 st.header(
-    "Policy Violations"
+    "Policy / Governance Interventions"
 )
 
 if history:
@@ -1688,44 +2056,48 @@ if history:
         history
     )
 
-    violations = df[
-        df["policy_allowed"] == False
+    interventions = df[
+        ~df["governance"].isin(
+            ["ALLOW"]
+        )
     ]
 
-    if len(violations) == 0:
+    if len(interventions) == 0:
 
         st.success(
-            "No policy violations detected."
+            "No non-ALLOW governance interventions "
+            "were recorded."
         )
 
     else:
 
         st.warning(
-            f"{len(violations)} "
-            f"policy violation decision(s) detected."
+            f"{len(interventions)} "
+            "non-ALLOW governance decision(s) recorded."
         )
 
-        violations_display = violations[
-            [
-                "step",
-                "governance",
-                "reason",
-                "risk",
-                "trust",
-            ]
+        display_columns = [
+            "step",
+            "governance",
+            "reason",
+            "risk",
+            "trust",
+            "modified",
+            "block_fallback",
         ]
 
         safe_display_dataframe(
-            violations_display,
-            width="stretch",
-            hide_index=False,
+            interventions[
+                display_columns
+            ],
+            hide_index=True,
             stringify_object_columns=True,
         )
 
 else:
 
     st.info(
-        "Policy violation analysis will appear "
+        "Governance intervention analysis will appear "
         "after execution."
     )
 
@@ -1763,7 +2135,6 @@ if history:
 
     safe_display_dataframe(
         recent_df,
-        width="stretch",
         hide_index=True,
         stringify_object_columns=True,
     )
@@ -1807,73 +2178,62 @@ if history:
 
 
 # ============================================================
-# H5 EVIDENCE
+# PHASE-4B.1 RESEARCH INTERPRETATION
 # ============================================================
 
 st.header(
-    "H5 Governance Evidence"
+    "Phase-4B.1 Research Interpretation"
 )
 
-h5a, h5b = st.columns(2)
+r1, r2, r3 = st.columns(3)
 
-with h5a:
-
-    st.subheader(
-        "H5-A"
-    )
-
-    st.success(
-        "Completed"
-    )
-
-    st.write(
-        "Normal-operation governed SAC benchmark"
-    )
-
-with h5b:
-
-    st.subheader(
-        "H5-B"
-    )
-
-    st.success(
-        "100%"
-    )
-
-    st.write(
-        "Governance branch accuracy"
-    )
-
-c1, c2 = st.columns(2)
-
-with c1:
+with r1:
 
     st.metric(
-        "Controlled Decisions",
-        "5,000",
+        "State Dimension",
+        STATE_DIM,
     )
 
-with c2:
+    st.caption(
+        "20 users × 5 state features"
+    )
+
+with r2:
 
     st.metric(
-        "Operating Regions",
-        "5",
+        "Action Dimension",
+        ACTION_DIM,
     )
+
+    st.caption(
+        "SAC-compatible action space"
+    )
+
+with r3:
+
+    st.metric(
+        "Cross-Polarization",
+        f"{CROSS_POLARIZATION_FACTOR:.2f}",
+    )
+
+    st.caption(
+        "Polarization-aware PHY"
+    )
+
 
 st.info(
-    "H5 validates governance enforcement and "
-    "controlled operating-region behavior. "
-    "It does not by itself prove that governance "
-    "improves physical-layer performance."
+    "Phase-4B.1 keeps the validated 100-dimensional "
+    "SAC state unchanged while enabling polarization-aware "
+    "PHY diagnostics."
 )
 
 st.warning(
-    "The observed SAC trust distribution in the "
-    "normal-operation benchmark should be interpreted "
-    "together with the current hard trust policy threshold. "
-    "Any mismatch between displayed trust and governance "
-    "decision trust must be resolved before using the "
-    "runtime output as a scientific claim."
+    "PQI/XPI are diagnostic variables in Phase-4B.1. "
+    "They are not part of the SAC observation state. "
+    "Therefore this dashboard must not claim that the "
+    "SAC policy explicitly learned polarization-aware "
+    "control. Phase-4B.2 requires a 140-dimensional state "
+    "and fresh SAC training."
 )
 
 
@@ -1887,52 +2247,50 @@ st.header(
 
 st.code(
     """
-                    TrustOSAI
-                        |
-                        v
-                 Trust / Risk Policy
-                        |
-                        v
-                 SAC Controller
-                        |
-                        v
+                    TA-FDRL-IRF
+                         |
+                         v
+                   SAC Controller
+                   State = 100
+                   Action = 40
+                         |
+                         v
                  Proposed Action
-                        |
-                        v
+                         |
+                         v
                 Governance Engine
-                        |
-            +-----------+-----------+
-            |           |           |
-          ALLOW      CONSTRAIN     BLOCK
-            |           |           |
-            |      Safe Envelope    |
-            |           |           |
-            +-----------+-----------+
-                        |
-                        v
-                 Executed Action
-                        |
-                        v
-                 IRF Environment
-                        |
-                        v
+                         |
+             +-----------+-----------+
+             |           |           |
+           ALLOW      CONSTRAIN   BLOCK/REVIEW
+             |           |           |
+             |      Safe Action      |
+             |           |           |
+             +-----------+-----------+
+                         |
+                         v
+                  Executed Action
+                         |
+                         v
+                  IRF Environment
+                         |
+                         v
               Polarization-aware PHY
-                        |
-                        v
-                    Telemetry
-                        |
-        +---------------+---------------+
-        |               |               |
-       SE              EE             Trust
-        |               |               |
-        +---------------+---------------+
-                        |
-                        v
-                 Governance Loop
-                        |
-                        +------> SAC
-                        |
-                        +------> Dashboard
+                         |
+              +----------+----------+
+              |          |          |
+             SE         EE        Trust
+              |          |          |
+              +----------+----------+
+                         |
+                         v
+                     Telemetry
+                         |
+                         +------> Governance
+                         |
+                         +------> Dashboard
+                         |
+                         +------> SAC
     """,
     language="text",
 )
@@ -1949,7 +2307,10 @@ st.header(
 system_data = {
 
     "Project":
-        "TA-FDRL-IRF",
+        PROJECT_NAME,
+
+    "Phase":
+        PHASE,
 
     "Controller":
         "Soft Actor-Critic",
@@ -1967,16 +2328,25 @@ system_data = {
         NUM_RIS_ELEMENTS,
 
     "Carrier":
-        "28 GHz",
+        f"{CARRIER_FREQUENCY_HZ / 1e9:.0f} GHz",
 
     "Bandwidth":
-        "100 MHz",
+        f"{BANDWIDTH_HZ / 1e6:.0f} MHz",
 
-    "Polarization":
+    "Polarization PHY":
         "Enabled",
+
+    "Polarization State":
+        "Disabled",
+
+    "Cross-Polarization Factor":
+        CROSS_POLARIZATION_FACTOR,
 
     "RIS Optimization":
         "Disabled",
+
+    "Adaptive Trust":
+        "Enabled",
 
     "Environment":
         "Live Simulation",
@@ -1991,13 +2361,6 @@ system_df = pd.DataFrame(
         "Value",
     ],
 )
-
-# ------------------------------------------------------------
-# IMPORTANT:
-# The Value column intentionally contains mixed Python types
-# such as integers and strings. Convert the display table to
-# homogeneous string columns before Streamlit/PyArrow sees it.
-# ------------------------------------------------------------
 
 system_df["Parameter"] = (
     system_df["Parameter"]
@@ -2017,32 +2380,46 @@ st.dataframe(
 
 
 # ============================================================
-# CHECKPOINT
+# CHECKPOINT INFORMATION
 # ============================================================
 
 st.header(
     "SAC Checkpoint"
 )
 
+checkpoint_relative = (
+    CHECKPOINT_PATH.relative_to(
+        PROJECT_ROOT
+    )
+)
+
 st.code(
     str(
-        CHECKPOINT_PATH.relative_to(
-            PROJECT_ROOT
-        )
+        checkpoint_relative
     ),
     language="text",
 )
 
 if CHECKPOINT_PATH.exists():
 
+    checkpoint_size_mb = (
+        CHECKPOINT_PATH.stat().st_size
+        / (1024 * 1024)
+    )
+
     st.success(
-        "Checkpoint available"
+        "SAC checkpoint available."
+    )
+
+    st.caption(
+        f"Checkpoint size: "
+        f"{checkpoint_size_mb:.2f} MB"
     )
 
 else:
 
     st.error(
-        "Checkpoint missing"
+        "SAC checkpoint missing."
     )
 
 
@@ -2068,38 +2445,47 @@ if (
         < MAX_STEPS
     ):
 
-        next_state, record = run_step(
+        try:
 
-            st.session_state.env,
+            next_state, record = run_step(
 
-            st.session_state.agent,
-
-            st.session_state.governance,
-
-            st.session_state.state,
-        )
-
-        record["step"] = (
-            len(
-                st.session_state.history
+                st.session_state.env,
+                st.session_state.agent,
+                st.session_state.governance,
+                st.session_state.state,
             )
-            + 1
-        )
 
-        st.session_state.state = (
-            next_state
-        )
+            record["step"] = (
+                len(
+                    st.session_state.history
+                )
+                + 1
+            )
 
-        st.session_state.history.append(
-            record
-        )
+            st.session_state.state = (
+                next_state
+            )
 
-        if (
-            record["terminated"]
-            or record["truncated"]
-        ):
+            st.session_state.history.append(
+                record
+            )
+
+            if (
+                record["terminated"]
+                or record["truncated"]
+            ):
+
+                st.session_state.running = False
+
+        except Exception as exc:
 
             st.session_state.running = False
+
+            st.error(
+                "Auto-refresh execution failed."
+            )
+
+            st.exception(exc)
 
         st.rerun()
 
@@ -2115,7 +2501,8 @@ if (
 st.divider()
 
 st.caption(
-    "TA-FDRL-IRF • TrustOSAI Governance Control Plane "
-    "• Research Demonstration • Live Simulation"
+    "TA-FDRL-IRF • Phase-4B.1 • "
+    "Trust-Aware Governance • "
+    "Polarization-Aware PHY • "
+    "Research Demonstration"
 )
-
