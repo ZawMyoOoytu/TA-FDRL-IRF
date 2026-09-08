@@ -1,0 +1,130 @@
+==============================================================================
+TA-FDRL-IRF | PHASE-4B.1 CONTROLLED SAC BENCHMARK
+==============================================================================
+
+EXPERIMENT CONFIGURATION
+------------------------------------------------------------------------------
+Users:                       20
+RIS elements:               64
+Bandwidth:                  100 MHz
+Carrier frequency:          28 GHz
+Polarization PHY:           ENABLED
+Polarization state:         DISABLED
+Cross-polarization factor:  0.15
+RIS optimization:           DISABLED
+Adaptive trust:             ENABLED
+State dimension:             100
+Action dimension:            40
+Episode steps:              200
+Controlled seeds:           6
+SAC training:               NOT PERFORMED
+SAC evaluation:             DETERMINISTIC
+
+SAC CHECKPOINT
+------------------------------------------------------------------------------
+C:\Users\heart\TA-FDRL-IRF\results\best_sac_irf_phase3_adaptive_trust\sac_phase3_adaptive_trust.pt
+
+CONTROLLED SEEDS
+------------------------------------------------------------------------------
+101, 202, 303, 404, 505, 606
+
+SAC PER-SEED RESULTS
+------------------------------------------------------------------------------
+Seed 101: Reward=90.603913037, SE=1.290640252e-01, EE=1.420934199e+06, Trust=0.331190469, TrustChange=-0.514695277, PQI=0.914361266, XPI=0.085638734
+Seed 202: Reward=84.393125342, SE=1.159223326e-01, EE=1.276878985e+06, Trust=0.321420501, TrustChange=-0.523440149, PQI=0.890365384, XPI=0.109634616
+Seed 303: Reward=88.960784329, SE=1.246678287e-01, EE=1.369941714e+06, Trust=0.339006579, TrustChange=-0.513922869, PQI=0.891677196, XPI=0.108322804
+Seed 404: Reward=59.285743563, SE=7.560959338e-02, EE=8.343050355e+05, Trust=0.306073392, TrustChange=-0.541283627, PQI=0.859101326, XPI=0.140898674
+Seed 505: Reward=96.560266813, SE=1.408555989e-01, EE=1.535878245e+06, Trust=0.339699973, TrustChange=-0.516216314, PQI=0.899180291, XPI=0.100819709
+Seed 606: Reward=78.918691201, SE=1.028176196e-01, EE=1.142456138e+06, Trust=0.320821292, TrustChange=-0.518247931, PQI=0.875707143, XPI=0.124292857
+
+RANDOM BASELINE PER-SEED RESULTS
+------------------------------------------------------------------------------
+Seed 101: Reward=57.897292483, SE=7.858972361e-02, EE=7.879696240e+05, Trust=0.307900996, TrustChange=-0.537984750, PQI=0.914361266, XPI=0.085638734
+Seed 202: Reward=58.217679794, SE=7.906915396e-02, EE=7.919655631e+05, Trust=0.305363282, TrustChange=-0.539497369, PQI=0.890365384, XPI=0.109634616
+Seed 303: Reward=56.895929694, SE=7.636323225e-02, EE=7.689816220e+05, Trust=0.316035236, TrustChange=-0.536894213, PQI=0.891677196, XPI=0.108322804
+Seed 404: Reward=56.456539056, SE=7.581819341e-02, EE=7.776933339e+05, Trust=0.305039539, TrustChange=-0.542317481, PQI=0.859101326, XPI=0.140898674
+Seed 505: Reward=58.723963438, SE=7.903087452e-02, EE=7.955947361e+05, Trust=0.315658987, TrustChange=-0.540257299, PQI=0.899180291, XPI=0.100819709
+Seed 606: Reward=55.635617128, SE=7.572058713e-02, EE=7.629817625e+05, Trust=0.298534153, TrustChange=-0.540535070, PQI=0.875707143, XPI=0.124292857
+
+SAC SUMMARY
+------------------------------------------------------------------------------
+Reward mean:                83.120420714
+Reward std:                 13.100443584
+SE mean:                    1.148228331e-01
+EE mean:                    1.263399053e+06
+Final trust mean:           0.326368701
+Trust change mean:          -0.521301028
+PQI mean:                   0.888398768
+XPI mean:                   0.111601232
+
+RANDOM BASELINE SUMMARY
+------------------------------------------------------------------------------
+Reward mean:                57.304503599
+Reward std:                 1.172289573
+SE mean:                    7.743196081e-02
+EE mean:                    7.808644403e+05
+Final trust mean:           0.308088699
+Trust change mean:          -0.539581030
+PQI mean:                   0.888398768
+XPI mean:                   0.111601232
+
+SAC VS RANDOM COMPARISON
+------------------------------------------------------------------------------
+Reward improvement:         45.0504%
+SE improvement:             48.2887%
+EE improvement:             61.7949%
+
+TRUST DYNAMICS
+------------------------------------------------------------------------------
+SAC initial trust mean:     0.847669729
+SAC final trust mean:       0.326368701
+SAC trust change mean:      -0.521301028
+Random initial trust mean:  0.847669729
+Random final trust mean:    0.308088699
+Random trust change mean:   -0.539581030
+
+POLARIZATION DIAGNOSTICS
+------------------------------------------------------------------------------
+SAC mean PQI:               0.888398767769
+SAC mean XPI:               0.111601232231
+SAC PQI + XPI:              1.000000000000
+SAC |PQI + XPI - 1|:        1.110223024625e-16
+
+Random mean PQI:            0.888398767769
+Random mean XPI:            0.111601232231
+Random PQI + XPI:           1.000000000000
+Random |PQI + XPI - 1|:     1.110223024625e-16
+
+REPRODUCIBILITY
+------------------------------------------------------------------------------
+Seed 101: max_error=0.000000000000e+00 PASS=True
+Seed 202: max_error=0.000000000000e+00 PASS=True
+Seed 303: max_error=0.000000000000e+00 PASS=True
+Seed 404: max_error=0.000000000000e+00 PASS=True
+Seed 505: max_error=0.000000000000e+00 PASS=True
+Seed 606: max_error=0.000000000000e+00 PASS=True
+
+Overall reproducibility: PASS
+
+SCIENTIFIC INTERPRETATION
+------------------------------------------------------------------------------
+
+Phase-4B.1 evaluates the integration of an existing 100-dimensional SAC policy with a polarization-aware PHY environment.
+
+The polarization-aware channel model is enabled, while polarization state features remain disabled. Therefore, the SAC policy continues to operate on the original 100-dimensional state representation.
+
+PQI and XPI are collected as PHY-level diagnostics. They are not provided to the SAC policy as state features in this phase.
+
+Consequently, Phase-4B.1 does not establish that SAC has learned explicit polarization-aware control. Instead, it evaluates whether the existing policy can operate consistently under the updated polarization-aware physical-layer model.
+
+The SAC-versus-random comparison provides a controlled system-level performance comparison using the same environment seeds. The random baseline uses a separate deterministic action RNG stream and does not use the SAC action sequence.
+
+The polarization diagnostics provide additional physical-layer observability. PQI represents the fraction of received polarization power associated with the desired V-polarized component, while XPI represents the cross-polarized H component under the current diagnostic definition.
+
+For Phase-4B.2, PQI and XPI can be exposed directly to the learning state. With 20 users and seven features per user [SINR, Interference, Queue, Power, Trust, PQI, XPI], the state dimension becomes 140. That change is architecturally incompatible with the current 100-dimensional checkpoint and therefore requires fresh SAC training.
+
+SAC training was intentionally not performed in Phase-4B.1 so that the experiment remains a controlled integration benchmark rather than a retraining study.
+
+==============================================================================
+PHASE-4B.1 CONTROLLED SAC BENCHMARK COMPLETE
+==============================================================================

@@ -1,0 +1,837 @@
+{
+  "experiment": {
+    "name": "Phase-4B.1 Controlled SAC Benchmark",
+    "phase": "4B.1",
+    "training_performed": false,
+    "evaluation_policy": "deterministic",
+    "state_dim": 100,
+    "action_dim": 40,
+    "num_users": 20,
+    "num_ris_elements": 64,
+    "bandwidth_hz": 100000000.0,
+    "carrier_frequency_hz": 28000000000.0,
+    "polarization_enabled": true,
+    "polarization_state_enabled": false,
+    "cross_polarization_factor": 0.15,
+    "optimize_ris": false,
+    "fixed_trust": false,
+    "steps_per_episode": 200,
+    "controlled_seeds": [
+      101,
+      202,
+      303,
+      404,
+      505,
+      606
+    ],
+    "random_action_seed_offset": 3000,
+    "reproducibility_tolerance": 1e-12
+  },
+  "checkpoint": "C:\\Users\\heart\\TA-FDRL-IRF\\results\\best_sac_irf_phase3_adaptive_trust\\sac_phase3_adaptive_trust.pt",
+  "sac": {
+    "architecture": {
+      "state_dim": 100,
+      "action_dim": 40,
+      "hidden_dim": 256,
+      "actor_lr": 0.0003,
+      "critic_lr": 0.0003,
+      "alpha_lr": 0.0003,
+      "gamma": 0.99,
+      "tau": 0.005,
+      "buffer_size": 100000,
+      "batch_size": 256
+    },
+    "per_seed": [
+      {
+        "seed": 101,
+        "metrics": {
+          "episode_reward": 90.60391303675844,
+          "spectral_efficiency": 0.12906402522265104,
+          "energy_efficiency": 1420934.1988120088,
+          "total_rate": 12906402.522265092,
+          "mean_sinr": 0.057609189938847644,
+          "initial_trust": 0.8458857459980068,
+          "final_trust": 0.3311904685512704,
+          "trust_change": -0.5146952774467364,
+          "mean_trust": 0.6031174076300188,
+          "mean_trust_delta": -0.002573476387233682,
+          "mean_behavior_score": 0.2426523612766317,
+          "mean_queue": 0.915857337833835,
+          "mean_power": 0.44915804748609645,
+          "interference_ratio": 1.0,
+          "mean_pqi": 0.9143612662340145,
+          "min_pqi": 0.5830122901701265,
+          "max_pqi": 0.9996365531374066,
+          "mean_xpi": 0.08563873376598527,
+          "min_xpi": 0.00036344686259335993,
+          "max_xpi": 0.41698770982987343,
+          "step_reward_mean": 0.45301956518379255,
+          "step_reward_std": 0.029342033933907462,
+          "steps": 200
+        }
+      },
+      {
+        "seed": 202,
+        "metrics": {
+          "episode_reward": 84.39312534197677,
+          "spectral_efficiency": 0.11592233260663028,
+          "energy_efficiency": 1276878.9853778626,
+          "total_rate": 11592233.260663018,
+          "mean_sinr": 0.05976059132118127,
+          "initial_trust": 0.8448606509166303,
+          "final_trust": 0.32142050147620005,
+          "trust_change": -0.5234401494404303,
+          "mean_trust": 0.597142159381464,
+          "mean_trust_delta": -0.0026172007472021514,
+          "mean_behavior_score": 0.23827992527978462,
+          "mean_queue": 0.9242956903793939,
+          "mean_power": 0.44895090536586957,
+          "interference_ratio": 1.0,
+          "mean_pqi": 0.8903653840148104,
+          "min_pqi": 0.5323348362362703,
+          "max_pqi": 0.9965320652641682,
+          "mean_xpi": 0.10963461598518938,
+          "min_xpi": 0.0034679347358318627,
+          "max_xpi": 0.4676651637637297,
+          "step_reward_mean": 0.4219656267098838,
+          "step_reward_std": 0.02905153403066709,
+          "steps": 200
+        }
+      },
+      {
+        "seed": 303,
+        "metrics": {
+          "episode_reward": 88.9607843289141,
+          "spectral_efficiency": 0.1246678287122127,
+          "energy_efficiency": 1369941.7138237567,
+          "total_rate": 12466782.871221282,
+          "mean_sinr": 0.06248069294038964,
+          "initial_trust": 0.852929448486558,
+          "final_trust": 0.33900657920151456,
+          "trust_change": -0.5139228692850435,
+          "mean_trust": 0.6122582362228338,
+          "mean_trust_delta": -0.0025696143464252184,
+          "mean_behavior_score": 0.24303856535747798,
+          "mean_queue": 0.9111356913919549,
+          "mean_power": 0.45003228530846556,
+          "interference_ratio": 1.0,
+          "mean_pqi": 0.8916771962041322,
+          "min_pqi": 0.28352268898365723,
+          "max_pqi": 0.9975245818759453,
+          "mean_xpi": 0.10832280379586773,
+          "min_xpi": 0.002475418124054662,
+          "max_xpi": 0.7164773110163427,
+          "step_reward_mean": 0.44480392164457044,
+          "step_reward_std": 0.030858149721668376,
+          "steps": 200
+        }
+      },
+      {
+        "seed": 404,
+        "metrics": {
+          "episode_reward": 59.285743562892335,
+          "spectral_efficiency": 0.07560959338090034,
+          "energy_efficiency": 834305.0355422727,
+          "total_rate": 7560959.338090042,
+          "mean_sinr": 0.05998101491056126,
+          "initial_trust": 0.8473570197186101,
+          "final_trust": 0.3060733923842175,
+          "trust_change": -0.5412836273343926,
+          "mean_trust": 0.5894009807240859,
+          "mean_trust_delta": -0.0027064181366719636,
+          "mean_behavior_score": 0.22935818633280328,
+          "mean_queue": 0.9321245866671913,
+          "mean_power": 0.4481552876420317,
+          "interference_ratio": 1.0,
+          "mean_pqi": 0.8591013262384698,
+          "min_pqi": 0.3636857099044892,
+          "max_pqi": 0.9960012005686619,
+          "mean_xpi": 0.14089867376153006,
+          "min_xpi": 0.003998799431338198,
+          "max_xpi": 0.6363142900955109,
+          "step_reward_mean": 0.2964287178144616,
+          "step_reward_std": 0.02894034311574517,
+          "steps": 200
+        }
+      },
+      {
+        "seed": 505,
+        "metrics": {
+          "episode_reward": 96.5602668133741,
+          "spectral_efficiency": 0.14085559894049368,
+          "energy_efficiency": 1535878.2447151712,
+          "total_rate": 14085559.894049345,
+          "mean_sinr": 0.06640684759006624,
+          "initial_trust": 0.8559162867126101,
+          "final_trust": 0.3396999725918417,
+          "trust_change": -0.5162163141207684,
+          "mean_trust": 0.6121070254588703,
+          "mean_trust_delta": -0.0025810815706038413,
+          "mean_behavior_score": 0.25213630745813914,
+          "mean_queue": 0.8867885285659506,
+          "mean_power": 0.45355040704645233,
+          "interference_ratio": 1.0,
+          "mean_pqi": 0.8991802910120745,
+          "min_pqi": 0.515093194974059,
+          "max_pqi": 0.9981889128351705,
+          "mean_xpi": 0.10081970898792532,
+          "min_xpi": 0.0018110871648295377,
+          "max_xpi": 0.48490680502594097,
+          "step_reward_mean": 0.4828013340668704,
+          "step_reward_std": 0.030109005932022627,
+          "steps": 200
+        }
+      },
+      {
+        "seed": 606,
+        "metrics": {
+          "episode_reward": 78.91869120064167,
+          "spectral_efficiency": 0.1028176195919439,
+          "energy_efficiency": 1142456.138420104,
+          "total_rate": 10281761.95919438,
+          "mean_sinr": 0.06135036743187068,
+          "initial_trust": 0.8390692229603509,
+          "final_trust": 0.32082129199161535,
+          "trust_change": -0.5182479309687356,
+          "mean_trust": 0.5936169751995964,
+          "mean_trust_delta": -0.0025912396548436784,
+          "mean_behavior_score": 0.24512006363160155,
+          "mean_queue": 0.8879753662237887,
+          "mean_power": 0.4449924872666597,
+          "interference_ratio": 1.0,
+          "mean_pqi": 0.8757071429105595,
+          "min_pqi": 0.24576830081933068,
+          "max_pqi": 0.9971905074830036,
+          "mean_xpi": 0.12429285708944045,
+          "min_xpi": 0.002809492516996261,
+          "max_xpi": 0.7542316991806692,
+          "step_reward_mean": 0.3945934560032084,
+          "step_reward_std": 0.033263804138696056,
+          "steps": 200
+        }
+      }
+    ],
+    "summary": {
+      "episode_reward": {
+        "mean": 83.1204207140929,
+        "std": 13.100443584437068,
+        "min": 59.285743562892335,
+        "max": 96.5602668133741
+      },
+      "spectral_efficiency": {
+        "mean": 0.11482283307580532,
+        "std": 0.023067087413851745,
+        "min": 0.07560959338090034,
+        "max": 0.14085559894049368
+      },
+      "energy_efficiency": {
+        "mean": 1263399.0527818627,
+        "std": 248734.45424435035,
+        "min": 834305.0355422727,
+        "max": 1535878.2447151712
+      },
+      "total_rate": {
+        "mean": 11482283.307580525,
+        "std": 2306708.741385167,
+        "min": 7560959.338090042,
+        "max": 14085559.894049345
+      },
+      "mean_sinr": {
+        "mean": 0.06126478402215279,
+        "std": 0.003006679353351724,
+        "min": 0.057609189938847644,
+        "max": 0.06640684759006624
+      },
+      "initial_trust": {
+        "mean": 0.8476697291321277,
+        "std": 0.0060134909902196405,
+        "min": 0.8390692229603509,
+        "max": 0.8559162867126101
+      },
+      "final_trust": {
+        "mean": 0.3263687010327766,
+        "std": 0.012867371037268982,
+        "min": 0.3060733923842175,
+        "max": 0.3396999725918417
+      },
+      "trust_change": {
+        "mean": -0.5213010280993511,
+        "std": 0.010364641815391153,
+        "min": -0.5412836273343926,
+        "max": -0.5139228692850435
+      },
+      "mean_trust": {
+        "mean": 0.601273797436145,
+        "std": 0.00957159087981693,
+        "min": 0.5894009807240859,
+        "max": 0.6122582362228338
+      },
+      "mean_trust_delta": {
+        "mean": -0.0026065051404967556,
+        "std": 5.1823209076955844e-05,
+        "min": -0.0027064181366719636,
+        "max": -0.0025696143464252184
+      },
+      "mean_behavior_score": {
+        "mean": 0.24176423488940638,
+        "std": 0.007580298368587345,
+        "min": 0.22935818633280328,
+        "max": 0.25213630745813914
+      },
+      "mean_queue": {
+        "mean": 0.9096962001770191,
+        "std": 0.018723062960799182,
+        "min": 0.8867885285659506,
+        "max": 0.9321245866671913
+      },
+      "mean_power": {
+        "mean": 0.44913990335259585,
+        "std": 0.0027732820312626823,
+        "min": 0.4449924872666597,
+        "max": 0.45355040704645233
+      },
+      "interference_ratio": {
+        "mean": 1.0,
+        "std": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "mean_pqi": {
+        "mean": 0.8883987677690102,
+        "std": 0.01910144321370312,
+        "min": 0.8591013262384698,
+        "max": 0.9143612662340145
+      },
+      "min_pqi": {
+        "mean": 0.4205695035146555,
+        "std": 0.14169469474485663,
+        "min": 0.24576830081933068,
+        "max": 0.5830122901701265
+      },
+      "max_pqi": {
+        "mean": 0.9975123035273928,
+        "std": 0.0012898247336454592,
+        "min": 0.9960012005686619,
+        "max": 0.9996365531374066
+      },
+      "mean_xpi": {
+        "mean": 0.11160123223098972,
+        "std": 0.019101443213703165,
+        "min": 0.08563873376598527,
+        "max": 0.14089867376153006
+      },
+      "min_xpi": {
+        "mean": 0.0024876964726073137,
+        "std": 0.0012898247336454842,
+        "min": 0.00036344686259335993,
+        "max": 0.003998799431338198
+      },
+      "max_xpi": {
+        "mean": 0.5794304964853445,
+        "std": 0.14169469474485663,
+        "min": 0.41698770982987343,
+        "max": 0.7542316991806692
+      },
+      "step_reward_mean": {
+        "mean": 0.4156021035704645,
+        "std": 0.06550221792218539,
+        "min": 0.2964287178144616,
+        "max": 0.4828013340668704
+      },
+      "step_reward_std": {
+        "mean": 0.0302608118121178,
+        "std": 0.001639997782754884,
+        "min": 0.02894034311574517,
+        "max": 0.033263804138696056
+      }
+    }
+  },
+  "random_baseline": {
+    "per_seed": [
+      {
+        "seed": 101,
+        "metrics": {
+          "episode_reward": 57.89729248333976,
+          "spectral_efficiency": 0.0785897236065556,
+          "energy_efficiency": 787969.6240198065,
+          "total_rate": 7858972.360655564,
+          "mean_sinr": 0.05950604677216762,
+          "initial_trust": 0.8458857459980068,
+          "final_trust": 0.30790099601124155,
+          "trust_change": -0.5379847499867653,
+          "mean_trust": 0.5907742241042733,
+          "mean_trust_delta": -0.0026899237499338267,
+          "mean_behavior_score": 0.23100762500661723,
+          "mean_queue": 0.9274414765944727,
+          "mean_power": 0.501853020241043,
+          "interference_ratio": 1.0,
+          "mean_pqi": 0.9143612662340145,
+          "min_pqi": 0.5830122901701265,
+          "max_pqi": 0.9996365531374066,
+          "mean_xpi": 0.08563873376598527,
+          "min_xpi": 0.00036344686259335993,
+          "max_xpi": 0.41698770982987343,
+          "step_reward_mean": 0.2894864624166988,
+          "step_reward_std": 0.07528220940499053,
+          "steps": 200
+        }
+      },
+      {
+        "seed": 202,
+        "metrics": {
+          "episode_reward": 58.21767979369693,
+          "spectral_efficiency": 0.07906915396039035,
+          "energy_efficiency": 791965.5630907054,
+          "total_rate": 7906915.3960390305,
+          "mean_sinr": 0.05856124275980853,
+          "initial_trust": 0.8448606509166303,
+          "final_trust": 0.3053632815892678,
+          "trust_change": -0.5394973693273626,
+          "mean_trust": 0.5882263188724777,
+          "mean_trust_delta": -0.0026974868466368125,
+          "mean_behavior_score": 0.23025131533631843,
+          "mean_queue": 0.9308532247878009,
+          "mean_power": 0.5021391729097915,
+          "interference_ratio": 1.0,
+          "mean_pqi": 0.8903653840148104,
+          "min_pqi": 0.5323348362362703,
+          "max_pqi": 0.9965320652641682,
+          "mean_xpi": 0.10963461598518938,
+          "min_xpi": 0.0034679347358318627,
+          "max_xpi": 0.4676651637637297,
+          "step_reward_mean": 0.29108839896848465,
+          "step_reward_std": 0.06892135115259815,
+          "steps": 200
+        }
+      },
+      {
+        "seed": 303,
+        "metrics": {
+          "episode_reward": 56.89592969426104,
+          "spectral_efficiency": 0.0763632322544043,
+          "energy_efficiency": 768981.6220384326,
+          "total_rate": 7636323.225440427,
+          "mean_sinr": 0.05589071107816907,
+          "initial_trust": 0.852929448486558,
+          "final_trust": 0.31603523563091307,
+          "trust_change": -0.536894212855645,
+          "mean_trust": 0.5991176824948857,
+          "mean_trust_delta": -0.002684471064278224,
+          "mean_behavior_score": 0.23155289357217718,
+          "mean_queue": 0.9237674110050316,
+          "mean_power": 0.49992566889080065,
+          "interference_ratio": 1.0,
+          "mean_pqi": 0.8916771962041322,
+          "min_pqi": 0.28352268898365723,
+          "max_pqi": 0.9975245818759453,
+          "mean_xpi": 0.10832280379586773,
+          "min_xpi": 0.002475418124054662,
+          "max_xpi": 0.7164773110163427,
+          "step_reward_mean": 0.2844796484713052,
+          "step_reward_std": 0.06014404517594976,
+          "steps": 200
+        }
+      },
+      {
+        "seed": 404,
+        "metrics": {
+          "episode_reward": 56.45653905628297,
+          "spectral_efficiency": 0.07581819340861179,
+          "energy_efficiency": 777693.3338791876,
+          "total_rate": 7581819.3408611715,
+          "mean_sinr": 0.056069478520687034,
+          "initial_trust": 0.8473570197186101,
+          "final_trust": 0.30503953915824356,
+          "trust_change": -0.5423174805603665,
+          "mean_trust": 0.5886385071208123,
+          "mean_trust_delta": -0.002711587402801833,
+          "mean_behavior_score": 0.22884125971981656,
+          "mean_queue": 0.9344022754306627,
+          "mean_power": 0.4898518638849557,
+          "interference_ratio": 1.0,
+          "mean_pqi": 0.8591013262384698,
+          "min_pqi": 0.3636857099044892,
+          "max_pqi": 0.9960012005686619,
+          "mean_xpi": 0.14089867376153006,
+          "min_xpi": 0.003998799431338198,
+          "max_xpi": 0.6363142900955109,
+          "step_reward_mean": 0.28228269528141475,
+          "step_reward_std": 0.0539101599144766,
+          "steps": 200
+        }
+      },
+      {
+        "seed": 505,
+        "metrics": {
+          "episode_reward": 58.72396343828699,
+          "spectral_efficiency": 0.07903087451747083,
+          "energy_efficiency": 795594.736070832,
+          "total_rate": 7903087.451747082,
+          "mean_sinr": 0.05816093782909732,
+          "initial_trust": 0.8559162867126101,
+          "final_trust": 0.3156589873015458,
+          "trust_change": -0.5402572994110644,
+          "mean_trust": 0.5987416760553331,
+          "mean_trust_delta": -0.002701286497055322,
+          "mean_behavior_score": 0.22987135029446762,
+          "mean_queue": 0.9324327815679136,
+          "mean_power": 0.49979343252648567,
+          "interference_ratio": 1.0,
+          "mean_pqi": 0.8991802910120745,
+          "min_pqi": 0.515093194974059,
+          "max_pqi": 0.9981889128351705,
+          "mean_xpi": 0.10081970898792532,
+          "min_xpi": 0.0018110871648295377,
+          "max_xpi": 0.48490680502594097,
+          "step_reward_mean": 0.29361981719143515,
+          "step_reward_std": 0.06920712675082193,
+          "steps": 200
+        }
+      },
+      {
+        "seed": 606,
+        "metrics": {
+          "episode_reward": 55.63561712786162,
+          "spectral_efficiency": 0.07572058713164408,
+          "energy_efficiency": 762981.7624998683,
+          "total_rate": 7572058.713164411,
+          "mean_sinr": 0.05654216080795543,
+          "initial_trust": 0.8390692229603509,
+          "final_trust": 0.29853415268611944,
+          "trust_change": -0.5405350702742315,
+          "mean_trust": 0.5820770320252465,
+          "mean_trust_delta": -0.0027026753513711573,
+          "mean_behavior_score": 0.22973246486288398,
+          "mean_queue": 0.9306789209312821,
+          "mean_power": 0.49969684572592077,
+          "interference_ratio": 1.0,
+          "mean_pqi": 0.8757071429105595,
+          "min_pqi": 0.24576830081933068,
+          "max_pqi": 0.9971905074830036,
+          "mean_xpi": 0.12429285708944045,
+          "min_xpi": 0.002809492516996261,
+          "max_xpi": 0.7542316991806692,
+          "step_reward_mean": 0.278178085639308,
+          "step_reward_std": 0.06374197929671385,
+          "steps": 200
+        }
+      }
+    ],
+    "summary": {
+      "episode_reward": {
+        "mean": 57.30450359895488,
+        "std": 1.1722895729463974,
+        "min": 55.63561712786162,
+        "max": 58.72396343828699
+      },
+      "spectral_efficiency": {
+        "mean": 0.07743196081317949,
+        "std": 0.001628039739503299,
+        "min": 0.07572058713164408,
+        "max": 0.07906915396039035
+      },
+      "energy_efficiency": {
+        "mean": 780864.4402664722,
+        "std": 13128.19582026102,
+        "min": 762981.7624998683,
+        "max": 795594.736070832
+      },
+      "total_rate": {
+        "mean": 7743196.081317947,
+        "std": 162803.9739503307,
+        "min": 7572058.713164411,
+        "max": 7906915.3960390305
+      },
+      "mean_sinr": {
+        "mean": 0.057455096294647505,
+        "std": 0.0014919020785088965,
+        "min": 0.05589071107816907,
+        "max": 0.05950604677216762
+      },
+      "initial_trust": {
+        "mean": 0.8476697291321277,
+        "std": 0.0060134909902196405,
+        "min": 0.8390692229603509,
+        "max": 0.8559162867126101
+      },
+      "final_trust": {
+        "mean": 0.3080886987295552,
+        "std": 0.006760274741078855,
+        "min": 0.29853415268611944,
+        "max": 0.31603523563091307
+      },
+      "trust_change": {
+        "mean": -0.5395810304025724,
+        "std": 0.0019302740834671874,
+        "min": -0.5423174805603665,
+        "max": -0.536894212855645
+      },
+      "mean_trust": {
+        "mean": 0.5912625734455047,
+        "std": 0.006608433039639305,
+        "min": 0.5820770320252465,
+        "max": 0.5991176824948857
+      },
+      "mean_trust_delta": {
+        "mean": -0.0026979051520128624,
+        "std": 9.651370417336077e-06,
+        "min": -0.002711587402801833,
+        "max": -0.002684471064278224
+      },
+      "mean_behavior_score": {
+        "mean": 0.2302094847987135,
+        "std": 0.0009651370417335612,
+        "min": 0.22884125971981656,
+        "max": 0.23155289357217718
+      },
+      "mean_queue": {
+        "mean": 0.9299293483861938,
+        "std": 0.0037907423807924346,
+        "min": 0.9237674110050316,
+        "max": 0.9344022754306627
+      },
+      "mean_power": {
+        "mean": 0.49887666736316616,
+        "std": 0.004551115288192824,
+        "min": 0.4898518638849557,
+        "max": 0.5021391729097915
+      },
+      "interference_ratio": {
+        "mean": 1.0,
+        "std": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "mean_pqi": {
+        "mean": 0.8883987677690102,
+        "std": 0.01910144321370312,
+        "min": 0.8591013262384698,
+        "max": 0.9143612662340145
+      },
+      "min_pqi": {
+        "mean": 0.4205695035146555,
+        "std": 0.14169469474485663,
+        "min": 0.24576830081933068,
+        "max": 0.5830122901701265
+      },
+      "max_pqi": {
+        "mean": 0.9975123035273928,
+        "std": 0.0012898247336454592,
+        "min": 0.9960012005686619,
+        "max": 0.9996365531374066
+      },
+      "mean_xpi": {
+        "mean": 0.11160123223098972,
+        "std": 0.019101443213703165,
+        "min": 0.08563873376598527,
+        "max": 0.14089867376153006
+      },
+      "min_xpi": {
+        "mean": 0.0024876964726073137,
+        "std": 0.0012898247336454842,
+        "min": 0.00036344686259335993,
+        "max": 0.003998799431338198
+      },
+      "max_xpi": {
+        "mean": 0.5794304964853445,
+        "std": 0.14169469474485663,
+        "min": 0.41698770982987343,
+        "max": 0.7542316991806692
+      },
+      "step_reward_mean": {
+        "mean": 0.2865225179947744,
+        "std": 0.005861447864732079,
+        "min": 0.278178085639308,
+        "max": 0.29361981719143515
+      },
+      "step_reward_std": {
+        "mean": 0.0652011452825918,
+        "std": 0.007572389986323755,
+        "min": 0.0539101599144766,
+        "max": 0.07528220940499053
+      }
+    }
+  },
+  "reproducibility": [
+    {
+      "seed": 101,
+      "tolerance": 1e-12,
+      "max_absolute_error": 0.0,
+      "passed": true,
+      "errors": {
+        "episode_reward": 0.0,
+        "spectral_efficiency": 0.0,
+        "energy_efficiency": 0.0,
+        "total_rate": 0.0,
+        "mean_sinr": 0.0,
+        "initial_trust": 0.0,
+        "final_trust": 0.0,
+        "trust_change": 0.0,
+        "mean_trust": 0.0,
+        "mean_trust_delta": 0.0,
+        "mean_behavior_score": 0.0,
+        "mean_queue": 0.0,
+        "mean_power": 0.0,
+        "interference_ratio": 0.0,
+        "mean_pqi": 0.0,
+        "min_pqi": 0.0,
+        "max_pqi": 0.0,
+        "mean_xpi": 0.0,
+        "min_xpi": 0.0,
+        "max_xpi": 0.0,
+        "step_reward_mean": 0.0,
+        "step_reward_std": 0.0
+      }
+    },
+    {
+      "seed": 202,
+      "tolerance": 1e-12,
+      "max_absolute_error": 0.0,
+      "passed": true,
+      "errors": {
+        "episode_reward": 0.0,
+        "spectral_efficiency": 0.0,
+        "energy_efficiency": 0.0,
+        "total_rate": 0.0,
+        "mean_sinr": 0.0,
+        "initial_trust": 0.0,
+        "final_trust": 0.0,
+        "trust_change": 0.0,
+        "mean_trust": 0.0,
+        "mean_trust_delta": 0.0,
+        "mean_behavior_score": 0.0,
+        "mean_queue": 0.0,
+        "mean_power": 0.0,
+        "interference_ratio": 0.0,
+        "mean_pqi": 0.0,
+        "min_pqi": 0.0,
+        "max_pqi": 0.0,
+        "mean_xpi": 0.0,
+        "min_xpi": 0.0,
+        "max_xpi": 0.0,
+        "step_reward_mean": 0.0,
+        "step_reward_std": 0.0
+      }
+    },
+    {
+      "seed": 303,
+      "tolerance": 1e-12,
+      "max_absolute_error": 0.0,
+      "passed": true,
+      "errors": {
+        "episode_reward": 0.0,
+        "spectral_efficiency": 0.0,
+        "energy_efficiency": 0.0,
+        "total_rate": 0.0,
+        "mean_sinr": 0.0,
+        "initial_trust": 0.0,
+        "final_trust": 0.0,
+        "trust_change": 0.0,
+        "mean_trust": 0.0,
+        "mean_trust_delta": 0.0,
+        "mean_behavior_score": 0.0,
+        "mean_queue": 0.0,
+        "mean_power": 0.0,
+        "interference_ratio": 0.0,
+        "mean_pqi": 0.0,
+        "min_pqi": 0.0,
+        "max_pqi": 0.0,
+        "mean_xpi": 0.0,
+        "min_xpi": 0.0,
+        "max_xpi": 0.0,
+        "step_reward_mean": 0.0,
+        "step_reward_std": 0.0
+      }
+    },
+    {
+      "seed": 404,
+      "tolerance": 1e-12,
+      "max_absolute_error": 0.0,
+      "passed": true,
+      "errors": {
+        "episode_reward": 0.0,
+        "spectral_efficiency": 0.0,
+        "energy_efficiency": 0.0,
+        "total_rate": 0.0,
+        "mean_sinr": 0.0,
+        "initial_trust": 0.0,
+        "final_trust": 0.0,
+        "trust_change": 0.0,
+        "mean_trust": 0.0,
+        "mean_trust_delta": 0.0,
+        "mean_behavior_score": 0.0,
+        "mean_queue": 0.0,
+        "mean_power": 0.0,
+        "interference_ratio": 0.0,
+        "mean_pqi": 0.0,
+        "min_pqi": 0.0,
+        "max_pqi": 0.0,
+        "mean_xpi": 0.0,
+        "min_xpi": 0.0,
+        "max_xpi": 0.0,
+        "step_reward_mean": 0.0,
+        "step_reward_std": 0.0
+      }
+    },
+    {
+      "seed": 505,
+      "tolerance": 1e-12,
+      "max_absolute_error": 0.0,
+      "passed": true,
+      "errors": {
+        "episode_reward": 0.0,
+        "spectral_efficiency": 0.0,
+        "energy_efficiency": 0.0,
+        "total_rate": 0.0,
+        "mean_sinr": 0.0,
+        "initial_trust": 0.0,
+        "final_trust": 0.0,
+        "trust_change": 0.0,
+        "mean_trust": 0.0,
+        "mean_trust_delta": 0.0,
+        "mean_behavior_score": 0.0,
+        "mean_queue": 0.0,
+        "mean_power": 0.0,
+        "interference_ratio": 0.0,
+        "mean_pqi": 0.0,
+        "min_pqi": 0.0,
+        "max_pqi": 0.0,
+        "mean_xpi": 0.0,
+        "min_xpi": 0.0,
+        "max_xpi": 0.0,
+        "step_reward_mean": 0.0,
+        "step_reward_std": 0.0
+      }
+    },
+    {
+      "seed": 606,
+      "tolerance": 1e-12,
+      "max_absolute_error": 0.0,
+      "passed": true,
+      "errors": {
+        "episode_reward": 0.0,
+        "spectral_efficiency": 0.0,
+        "energy_efficiency": 0.0,
+        "total_rate": 0.0,
+        "mean_sinr": 0.0,
+        "initial_trust": 0.0,
+        "final_trust": 0.0,
+        "trust_change": 0.0,
+        "mean_trust": 0.0,
+        "mean_trust_delta": 0.0,
+        "mean_behavior_score": 0.0,
+        "mean_queue": 0.0,
+        "mean_power": 0.0,
+        "interference_ratio": 0.0,
+        "mean_pqi": 0.0,
+        "min_pqi": 0.0,
+        "max_pqi": 0.0,
+        "mean_xpi": 0.0,
+        "min_xpi": 0.0,
+        "max_xpi": 0.0,
+        "step_reward_mean": 0.0,
+        "step_reward_std": 0.0
+      }
+    }
+  ]
+}
