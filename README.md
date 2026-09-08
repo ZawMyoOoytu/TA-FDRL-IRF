@@ -2,9 +2,9 @@
 
 ## Trust-Aware Adaptive Federated Deep Reinforcement Learning for Intelligent Radio Fabric in 6G Networks
 
-### Phase 4-A — Polarization-Aware PHY Modeling
-
-[![Phase](https://img.shields.io/badge/Phase-4A%20Polarization--Aware%20PHY-blue)]()
+[![Phase](https://img.shields.io/badge/Phase-4A%20%7C%20H5--C-blue)]()
+[![Phase 4A](https://img.shields.io/badge/Phase-4A%20Polarization--Aware%20PHY-blue)]()
+[![H5-C](https://img.shields.io/badge/H5--C%20Governance%20Closed--Loop-success)]()
 [![Status](https://img.shields.io/badge/Status-Validated-success)]()
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue)]()
 [![RL](https://img.shields.io/badge/RL-SAC-orange)]()
@@ -13,11 +13,11 @@
 
 ---
 
-## Overview
+# Overview
 
 **TA-FDRL-IRF** is a research framework for investigating **trust-aware adaptive deep reinforcement learning for Intelligent Radio Fabric (IRF) networks in 6G systems**.
 
-The project combines:
+The project studies the interaction between:
 
 * Intelligent Radio Fabric (IRF)
 * Trust-aware network intelligence
@@ -25,21 +25,72 @@ The project combines:
 * Deep Reinforcement Learning (DRL)
 * Soft Actor-Critic (SAC)
 * Resource allocation
+* Governance-aware autonomous decision making
 * Polarization-aware wireless channel modeling
-* Reproducible multi-seed experimentation
-* Statistical validation
+* Reproducible experimentation
+* Multi-seed statistical validation
+* Closed-loop execution
+* Future hardware-oriented IRF control
 
 The project is developed incrementally through controlled research phases.
 
-**Phase 4-A** introduces a **polarization-aware physical-layer channel model** while deliberately keeping the reinforcement-learning controller unchanged.
+The central design principle is:
 
-This separation allows the experiment to answer a specific research question:
+> **Introduce one major research variable at a time, validate its implementation, benchmark it under controlled conditions, and freeze the resulting baseline before introducing the next variable.**
 
-> **What is the measurable effect of introducing a more physically expressive polarization-aware PHY model while retaining the original non-polarization-aware controller and action space?**
+This methodology is intended to make individual experimental results independently interpretable and reproducible.
 
-The purpose of Phase 4-A is therefore **not to optimize polarization yet**.
+---
 
-Instead, it establishes a controlled PHY baseline for the subsequent **Phase 4-B polarization-aware state representation** and later **joint IRF + polarization control**.
+# Research Objective
+
+The long-term objective is to investigate how an autonomous AI controller can operate an intelligent 6G radio environment while simultaneously considering:
+
+```text
+Performance
+     +
+Energy efficiency
+     +
+Trust
+     +
+Risk
+     +
+Governance
+     +
+Physical-layer behavior
+```
+
+The architecture therefore progresses from:
+
+```text
+AI Decision
+    ↓
+Network Control
+    ↓
+IRF Environment
+    ↓
+Wireless PHY
+```
+
+toward:
+
+```text
+AI Decision
+    ↓
+Governance
+    ↓
+Controlled Execution
+    ↓
+IRF / PHY
+    ↓
+Observed Outcome
+    ↓
+Trust Update
+    ↓
+Next AI Decision
+```
+
+The latter represents the project's closed-loop research direction.
 
 ---
 
@@ -60,6 +111,17 @@ Instead, it establishes a controlled PHY baseline for the subsequent **Phase 4-B
                              │
                              ▼
                   ┌──────────────────────┐
+                  │   Governance Layer   │
+                  │                      │
+                  │ Risk Assessment      │
+                  │ Policy Evaluation    │
+                  │ ALLOW                │
+                  │ CONSTRAIN            │
+                  │ BLOCK                │
+                  └──────────┬───────────┘
+                             │
+                             ▼
+                  ┌──────────────────────┐
                   │   IRF Environment    │
                   │                      │
                   │ Resource Allocation  │
@@ -70,7 +132,7 @@ Instead, it establishes a controlled PHY baseline for the subsequent **Phase 4-B
                              │
                              ▼
               ┌──────────────────────────────┐
-              │ Polarization-Aware PHY      │
+              │ Polarization-Aware PHY       │
               │                              │
               │ Direct Channel               │
               │       +                      │
@@ -86,17 +148,88 @@ Instead, it establishes a controlled PHY baseline for the subsequent **Phase 4-B
                    SINR / SE / EE Metrics
                              │
                              ▼
-                     Adaptive Trust
+                     Trust Feedback
                              │
                              ▼
                          Reward
+                             │
+                             ▼
+                   Next Control State
+```
+
+---
+
+# Closed-Loop Research Architecture
+
+The validated H5-C architecture establishes the following execution path:
+
+```text
+Candidate Action
+      │
+      ▼
+REAL GovernanceEngine
+      │
+      ├──────────────┬───────────────┐
+      ▼              ▼               ▼
+    ALLOW         CONSTRAIN         BLOCK
+      │              │               │
+      ▼              ▼               ▼
+Decision Action  SafeEnvelope    Safe Fallback
+                  Action           Action
+      │              │               │
+      └──────────────┴───────────────┘
+                     │
+                     ▼
+             REAL IRFEnvironment
+                     │
+                     ▼
+              Reward + Outcome
+                     │
+                     ▼
+          REAL TrustEngine Feedback
+                     │
+                     ▼
+             Updated Trust State
+                     │
+                     ▼
+          Next Governance Decision
+```
+
+This is a critical architectural distinction.
+
+The governance system is not validated merely as:
+
+```text
+Candidate Action
+       ↓
+Policy Evaluation
+       ↓
+Decision
+```
+
+It is validated as:
+
+```text
+Candidate Action
+       ↓
+Governance
+       ↓
+Actual Execution
+       ↓
+Environment Outcome
+       ↓
+Trust Feedback
+       ↓
+Updated Governance State
+       ↓
+Next Decision
 ```
 
 ---
 
 # Phase Development
 
-The project follows a controlled progression from a scalar PHY model toward polarization-aware and eventually hardware-oriented intelligent radio control.
+The project follows a controlled progression from a scalar PHY abstraction toward polarization-aware and eventually hardware-oriented intelligent radio control.
 
 ```text
 Phase 3
@@ -133,30 +266,46 @@ Scalar Rayleigh Channel
        Hardware Mapping
               │
               ▼
- Digital Controller
+       Digital Controller
               │
               ▼
- Bias / Control Circuit
+       Bias / Control Circuit
               │
               ▼
- PIN Diode / Varactor / RF Switch
+    PIN Diode / Varactor / RF Switch
               │
               ▼
- IRF Unit Cell
+        IRF Unit Cell
               │
               ▼
- EM Reflection / Polarization
+   EM Reflection / Polarization
               │
               ▼
- RF Front-End
+        RF Front-End
               │
               ▼
- Baseband
+          Baseband
+```
+
+In parallel, the governance validation path develops through:
+
+```text
+H5-A
+Governance Logic
+     ↓
+H5-B
+Governance Operating Region
+     ↓
+H5-C
+Governance Closed Loop
+     ↓
+H5-D
+Controlled Governance Impact
 ```
 
 ---
 
-# Phase 4-A
+# Phase 4-A — Polarization-Aware PHY Modeling
 
 ## Objective
 
@@ -172,7 +321,6 @@ Controller
     │ unchanged
     ▼
 Original 100-dimensional state
-    │
     │
     ▼
 Polarization-aware PHY
@@ -315,22 +463,23 @@ The Phase-4A default configuration uses:
 cross_polarization_factor = 0.15
 ```
 
-The parameter controls the relative strength of cross-polarization coupling.
-
-The model also exposes polarization strength parameters:
+The model also exposes:
 
 ```text
 polarization_v_strength = 1.0
 polarization_h_strength = 1.0
 ```
 
-These parameters are intentionally kept explicit so that future experiments can investigate polarization imbalance and cross-polarization behavior.
+These parameters remain explicit for future experiments investigating:
+
+* polarization imbalance
+* cross-polarization coupling
+* polarization diversity
+* polarization-aware beam control
 
 ---
 
 # System Configuration
-
-The default Phase-4A environment uses:
 
 | Parameter                 |       Value |
 | ------------------------- | ----------: |
@@ -354,7 +503,7 @@ The default Phase-4A environment uses:
 
 Phase 4-A deliberately retains the Phase-3 state representation.
 
-Each user contributes five state features:
+Each user contributes:
 
 ```text
 [SINR,
@@ -405,7 +554,7 @@ $$
 Action dimension = 40
 ```
 
-The SAC architecture and control variables are unchanged.
+The SAC architecture and control variables remain unchanged.
 
 ---
 
@@ -420,7 +569,7 @@ Trust dynamics consider:
 * queue behavior
 * instability
 
-The trust update uses:
+Configuration:
 
 ```text
 trust_memory = 0.90
@@ -428,7 +577,7 @@ trust_learning_rate = 0.10
 trust_target_rate_bps = 1e7
 ```
 
-Behavior weights:
+Trust weights:
 
 ```text
 service_weight       = 0.35
@@ -462,7 +611,7 @@ P_P
 P_Q
 $$
 
-where the components represent:
+The components represent:
 
 * spectral efficiency
 * energy efficiency
@@ -472,7 +621,7 @@ where the components represent:
 * power penalty
 * queue penalty
 
-Default weights include:
+Default weights:
 
 ```text
 SE weight            = 0.45
@@ -521,9 +670,9 @@ Batch size:
 256
 ```
 
-The purpose of this architectural constraint is experimental isolation.
+The architectural constraint is intentional.
 
-Any performance difference can therefore be interpreted primarily in relation to the PHY-model change rather than an RL architecture change.
+Any measured difference in the controlled PHY benchmark can therefore be attributed primarily to the PHY-model change rather than a simultaneous RL architecture change.
 
 ---
 
@@ -547,15 +696,15 @@ The environment uses:
 np.random.SeedSequence(seed)
 ```
 
-and spawns separate random generators for channel and dynamics processes.
+and separate random generators for channel and dynamics processes.
 
-This prevents changes in channel-generation logic from unintentionally changing the initial network dynamics.
-
-The original compatibility alias is retained:
+The compatibility alias:
 
 ```python
 self.rng = self.dynamics_rng
 ```
+
+is retained.
 
 This design enables controlled paired experiments.
 
@@ -580,9 +729,7 @@ The ON/OFF polarization comparison uses the same seed and controlled action sequ
           Paired Comparison
 ```
 
-Initial trust consistency was explicitly verified.
-
-Result:
+Initial trust consistency was verified.
 
 ```text
 Maximum initial-trust difference:
@@ -591,8 +738,6 @@ Maximum initial-trust difference:
 Consistency:
 PASS
 ```
-
-This makes the comparison substantially stronger than comparing unrelated random runs.
 
 ---
 
@@ -673,7 +818,7 @@ This isolates the PHY effect from policy-learning effects.
 
 ---
 
-# Benchmark Results
+# Phase-4A Benchmark Results
 
 ## Aggregate Results
 
@@ -835,7 +980,7 @@ Cohen's dz:
 
 ---
 
-# Statistical Interpretation
+# Phase-4A Scientific Interpretation
 
 The Phase-4A experiment shows a consistent performance reduction when the polarization-aware PHY is enabled under the current fixed-control configuration.
 
@@ -870,17 +1015,17 @@ Original SAC architecture
 
 The controller therefore does not directly observe the additional polarization information introduced by the PHY model.
 
-The result is more appropriately interpreted as:
+The appropriate interpretation is:
 
 > **Introducing a more physically expressive polarization-aware channel model while retaining a non-polarization-aware controller produces a measurable performance gap.**
 
-This performance gap establishes the motivation for the next experimental stage.
+This gap motivates the next experimental stage.
 
 ---
 
-# Research Hypothesis
+# Phase-4A Research Hypothesis
 
-Phase 4-A tests the following hypothesis:
+Phase 4-A tests:
 
 > **H₀:** Introducing polarization-aware PHY modeling does not produce a measurable difference in network performance under the controlled configuration.
 
@@ -899,13 +1044,427 @@ The next phase investigates whether providing the controller with polarization-a
 
 ---
 
+# H5-C — Governance Closed-Loop Benchmark
+
+## Objective
+
+H5-C validates the end-to-end closed-loop execution path between the governance layer, the real IRF environment, and the real TrustEngine.
+
+Unlike a governance-only unit test, H5-C verifies that governance decisions are propagated into actual environment execution and that post-execution outcomes are returned to the TrustEngine as sequential feedback.
+
+The validated path is:
+
+```text
+Candidate Action
+      ↓
+REAL GovernanceEngine
+      ↓
+ALLOW / CONSTRAIN / BLOCK
+      ↓
+Governed Action / Safe Fallback
+      ↓
+REAL IRFEnvironment
+      ↓
+Reward + Telemetry
+      ↓
+REAL TrustEngine.post_execution_feedback()
+      ↓
+Updated Trust State
+      ↓
+Next Governance Step
+```
+
+---
+
+# H5-C Validation Scenarios
+
+Six controlled scenarios were evaluated:
+
+| Scenario                | Purpose                                       |
+| ----------------------- | --------------------------------------------- |
+| `SAFE_ALLOW`            | Validate normal governance-approved execution |
+| `MEDIUM_RISK_CONSTRAIN` | Validate SafeEnvelope constrained execution   |
+| `POLICY_BLOCK`          | Validate policy-based execution blocking      |
+| `LOW_TRUST_BLOCK`       | Validate low-trust blocking                   |
+| `HIGH_RISK_BLOCK`       | Validate high-risk blocking                   |
+| `MIXED_SEQUENCE`        | Validate sequential state propagation         |
+
+Each scenario executes 20 closed-loop timesteps.
+
+Total:
+
+```text
+6 scenarios × 20 steps
+= 120 closed-loop steps
+```
+
+---
+
+# H5-C Execution Semantics
+
+## ALLOW
+
+When governance returns `ALLOW`:
+
+```text
+Candidate
+   ↓
+GovernanceEngine
+   ↓
+Decision.action
+   ↓
+IRFEnvironment.step()
+```
+
+The environment must execute the governance decision action.
+
+---
+
+## CONSTRAIN
+
+When governance returns `CONSTRAIN`:
+
+```text
+Candidate
+   ↓
+GovernanceEngine
+   ↓
+SafeEnvelope
+   ↓
+Modified Decision.action
+   ↓
+IRFEnvironment.step()
+```
+
+The candidate is allowed to execute only after governance modification.
+
+---
+
+## BLOCK
+
+When governance returns `BLOCK`:
+
+```text
+Candidate
+   ↓
+GovernanceEngine
+   ↓
+BLOCK
+   │
+   └──X── Candidate is NOT executed
+
+Safe Fallback
+   ↓
+IRFEnvironment.step()
+```
+
+The benchmark explicitly validates execution isolation.
+
+The numerical value of the fallback action is not used to infer whether blocking occurred.
+
+Instead:
+
+```text
+candidate_executed = False
+fallback_executed  = True
+```
+
+is treated as the authoritative execution invariant.
+
+---
+
+# H5-C Trust Feedback
+
+After every successful environment execution, the actual executed action is passed to the real TrustEngine.
+
+The feedback interface receives:
+
+```text
+reward
+environment_trust
+executed_action
+policy_allowed
+risk_score
+```
+
+The important property is:
+
+> **TrustEngine feedback is based on the action that was actually executed, not merely the original candidate action.**
+
+For an episode containing \(N\) successful feedback calls, the expected TrustEngine history lengths are:
+
+```text
+trust_history    = N + 1
+action_history   = N
+risk_history     = N
+policy_history   = N
+outcome_history  = N
+```
+
+For the 20-step H5-C episodes:
+
+```text
+trust_history    = 21
+action_history   = 20
+risk_history     = 20
+policy_history   = 20
+outcome_history  = 20
+```
+
+This invariant was satisfied in every scenario.
+
+---
+
+# H5-C Benchmark Result
+
+The completed benchmark produced:
+
+```text
+Total scenarios           : 6
+Total closed-loop steps   : 120
+
+ALLOW                     : 22
+CONSTRAIN                 : 2
+BLOCK                     : 96
+
+Candidate executions      : 24
+Fallback executions       : 96
+
+Environment executions    : 120
+Environment failures      : 0
+
+Trust feedback calls      : 120
+Trust feedback successes  : 120
+Trust feedback failures   : 0
+```
+
+Execution rates:
+
+```text
+ALLOW rate                : 18.33%
+CONSTRAIN rate            : 1.67%
+BLOCK rate                : 80.00%
+
+Candidate execution rate  : 20.00%
+Fallback execution rate   : 80.00%
+
+Feedback success rate     : 100.00%
+```
+
+---
+
+# H5-C Scenario Results
+
+```text
+SAFE_ALLOW
+    ALLOW       : 15
+    CONSTRAIN   : 0
+    BLOCK       : 5
+    Candidate   : 15
+    Fallback    : 5
+    PASS
+
+MEDIUM_RISK_CONSTRAIN
+    ALLOW       : 0
+    CONSTRAIN   : 1
+    BLOCK       : 19
+    Candidate   : 1
+    Fallback    : 19
+    PASS
+
+POLICY_BLOCK
+    ALLOW       : 0
+    CONSTRAIN   : 0
+    BLOCK       : 20
+    Candidate   : 0
+    Fallback    : 20
+    PASS
+
+LOW_TRUST_BLOCK
+    ALLOW       : 0
+    CONSTRAIN   : 0
+    BLOCK       : 20
+    Candidate   : 0
+    Fallback    : 20
+    PASS
+
+HIGH_RISK_BLOCK
+    ALLOW       : 0
+    CONSTRAIN   : 0
+    BLOCK       : 20
+    Candidate   : 0
+    Fallback    : 20
+    PASS
+
+MIXED_SEQUENCE
+    ALLOW       : 7
+    CONSTRAIN   : 1
+    BLOCK       : 12
+    Candidate   : 8
+    Fallback    : 12
+    PASS
+```
+
+---
+
+# H5-C Closed-Loop Validation
+
+```text
+Scenario validations     : 6/6
+
+[PASS] ALLOW closed-loop region observed
+[PASS] CONSTRAIN closed-loop region observed
+[PASS] BLOCK closed-loop region observed
+
+[PASS] BLOCK prevents candidate execution
+[PASS] BLOCK fallback accounting is consistent
+[PASS] BLOCK executes designated safe fallback
+
+[PASS] CONSTRAIN executes SafeEnvelope-modified action
+[PASS] ALLOW executes governance decision action
+[PASS] ALLOW candidate-to-decision numerical equivalence
+
+[PASS] Real IRF environment executed
+[PASS] Post-execution TrustEngine feedback integrated
+[PASS] Trust history records sequential feedback state
+[PASS] TrustEngine execution histories are complete
+[PASS] Sequential governance state preserved
+
+[PASS] All scenario-level validations passed
+```
+
+---
+
+# H5-C Final Validation Status
+
+```text
+Real GovernanceEngine        : PASS
+Real IRF execution           : PASS
+ALLOW gate                   : PASS
+CONSTRAIN gate               : PASS
+BLOCK gate                   : PASS
+Execution isolation          : PASS
+Fallback execution           : PASS
+Trust feedback integration   : PASS
+Trust history continuity     : PASS
+Trust execution histories    : PASS
+Sequential closed-loop state : PASS
+
+RESULT: H5-C GOVERNANCE CLOSED-LOOP BENCHMARK PASSED
+```
+
+---
+
+# H5-C Scientific Interpretation
+
+H5-C establishes that the governance layer is operationally connected to the physical-system simulation path rather than functioning as an isolated decision module.
+
+The validated relationship is:
+
+```text
+Governance Decision
+        ↓
+Actual Execution
+        ↓
+Environment Outcome
+        ↓
+Trust Feedback
+        ↓
+Updated Trust State
+        ↓
+Subsequent Governance Decision
+```
+
+Therefore, the validated system is not simply:
+
+```text
+Action → Governance → Decision
+```
+
+but:
+
+```text
+Action
+  → Governance
+  → Execution
+  → Environment Outcome
+  → Trust Update
+  → Next Governance State
+  → Next Action
+```
+
+This distinction is important because it demonstrates **closed-loop governance integration** rather than only static policy classification.
+
+---
+
+# H5-C Reproducibility
+
+The benchmark implementation is:
+
+```text
+experiments/governance_closed_loop_benchmark.py
+```
+
+The execution record is:
+
+```text
+results/h5c_governance_closed_loop_benchmark.txt
+```
+
+Run:
+
+```powershell
+python -m py_compile .\experiments\governance_closed_loop_benchmark.py
+python .\experiments\governance_closed_loop_benchmark.py
+```
+
+The benchmark performs:
+
+```text
+Real GovernanceEngine
+        +
+Real IRFEnvironment
+        +
+Real TrustEngine
+```
+
+No fake environment is used.
+
+No direct trust-score mutation is used.
+
+No SAC training is performed.
+
+The benchmark is specifically designed to validate the real governance-to-execution-to-trust feedback path.
+
+---
+
+# What H5-C Does Not Demonstrate
+
+H5-C does **not** demonstrate:
+
+* optimal RL policy performance
+* optimal governance thresholds
+* improved spectral efficiency
+* improved energy efficiency
+* polarization optimization
+* hardware execution
+* electromagnetic full-wave accuracy
+* real RF control
+* real-world 6G deployment performance
+
+H5-C is an **integration and execution-path validation benchmark**.
+
+Performance optimization is addressed by later experiments.
+
+---
+
 # What Phase 4-A Demonstrates
 
 Phase 4-A successfully establishes:
 
 ### 1. Polarization-aware channel representation
 
-The scalar channel model has been extended toward a matrix-based polarization representation.
+The scalar channel abstraction has been extended toward a matrix-based polarization representation.
 
 ### 2. Controlled PHY integration
 
@@ -927,15 +1486,11 @@ Six independent seeds were evaluated.
 
 Paired inferential tests were performed on the primary performance metrics.
 
-### 7. Research baseline
-
-Phase 4-A provides a quantitative baseline for the next state-space augmentation.
-
 ---
 
 # What Phase 4-A Does Not Demonstrate
 
-Phase 4-A does **not** demonstrate:
+Phase 4-A does not demonstrate:
 
 * optimal polarization control
 * joint polarization and IRF optimization
@@ -1010,9 +1565,9 @@ It does not replace a full-wave electromagnetic solver or measured RF hardware.
 
 ---
 
-## 5. No SAC training in the controlled PHY benchmark
+## 5. Controlled benchmark does not perform SAC training
 
-The multi-seed ON/OFF benchmark uses a controlled action sequence.
+The Phase-4A multi-seed ON/OFF benchmark uses a controlled action sequence.
 
 This is intentional.
 
@@ -1046,7 +1601,7 @@ Activate:
 .venv\Scripts\Activate.ps1
 ```
 
-Install project dependencies:
+Install dependencies:
 
 ```powershell
 pip install -r requirements.txt
@@ -1054,7 +1609,7 @@ pip install -r requirements.txt
 
 ---
 
-# Validation Commands
+# Phase-4A Validation Commands
 
 Compile the environment:
 
@@ -1068,13 +1623,13 @@ Compile the validation script:
 python -m py_compile test_environment.py
 ```
 
-Run the Phase-4A PHY validation:
+Run PHY validation:
 
 ```powershell
 python test_environment.py
 ```
 
-Expected validation properties:
+Expected properties:
 
 ```text
 State dimension = 100
@@ -1086,21 +1641,21 @@ RIS optimization = False
 
 ---
 
-# Benchmark Commands
+# Phase-4A Benchmark Commands
 
-Run the single-seed controlled benchmark:
+Single-seed benchmark:
 
 ```powershell
 python experiments\phase4a_polarization_benchmark.py
 ```
 
-Run the six-seed benchmark:
+Six-seed benchmark:
 
 ```powershell
 python experiments\phase4a_multiseed_benchmark.py
 ```
 
-Run paired statistical analysis:
+Paired statistical analysis:
 
 ```powershell
 python experiments\phase4a_paired_statistics.py
@@ -1108,15 +1663,39 @@ python experiments\phase4a_paired_statistics.py
 
 ---
 
+# H5-C Benchmark Command
+
+Compile:
+
+```powershell
+python -m py_compile experiments\governance_closed_loop_benchmark.py
+```
+
+Run:
+
+```powershell
+python experiments\governance_closed_loop_benchmark.py
+```
+
+Save execution record:
+
+```powershell
+python experiments\governance_closed_loop_benchmark.py `
+  2>&1 | Tee-Object results\h5c_governance_closed_loop_benchmark.txt
+```
+
+---
+
 # Generated Results
 
-Phase-4A produces the following research artifacts:
+The research artifacts include:
 
 ```text
 results/
 ├── phase4a_polarization_benchmark.txt
 ├── phase4a_multiseed_benchmark.txt
-└── phase4a_paired_statistics.txt
+├── phase4a_paired_statistics.txt
+└── h5c_governance_closed_loop_benchmark.txt
 ```
 
 The reports contain:
@@ -1129,6 +1708,10 @@ The reports contain:
 * inferential statistics
 * confidence intervals
 * effect sizes
+* governance execution counts
+* environment execution evidence
+* TrustEngine feedback evidence
+* closed-loop validation results
 
 ---
 
@@ -1143,12 +1726,14 @@ TA-FDRL-IRF/
 ├── experiments/
 │   ├── phase4a_polarization_benchmark.py
 │   ├── phase4a_multiseed_benchmark.py
-│   └── phase4a_paired_statistics.py
+│   ├── phase4a_paired_statistics.py
+│   └── governance_closed_loop_benchmark.py
 │
 ├── results/
 │   ├── phase4a_polarization_benchmark.txt
 │   ├── phase4a_multiseed_benchmark.txt
-│   └── phase4a_paired_statistics.txt
+│   ├── phase4a_paired_statistics.txt
+│   └── h5c_governance_closed_loop_benchmark.txt
 │
 ├── test_environment.py
 ├── requirements.txt
@@ -1158,85 +1743,95 @@ TA-FDRL-IRF/
 
 ---
 
-# Experimental Design Summary
+# Experimental Methodology
+
+The project follows:
 
 ```text
-                 Phase 4-A
-                     │
-                     ▼
-       ┌─────────────────────────┐
-       │ Same Environment        │
-       │ Same Seeds              │
-       │ Same Actions            │
-       │ Same Dynamics RNG       │
-       └────────────┬────────────┘
-                    │
-          ┌─────────┴─────────┐
-          │                   │
-          ▼                   ▼
-   Polarization OFF     Polarization ON
-          │                   │
-          ▼                   ▼
-      Performance          Performance
-          │                   │
-          └─────────┬─────────┘
-                    │
-                    ▼
-             Paired Analysis
-                    │
-                    ▼
-         Statistical Validation
+Define hypothesis
+        ↓
+Freeze baseline
+        ↓
+Change one major variable
+        ↓
+Validate implementation
+        ↓
+Run controlled experiment
+        ↓
+Repeat across seeds
+        ↓
+Perform statistical analysis
+        ↓
+Interpret limitations
+        ↓
+Freeze result
+        ↓
+Introduce next research variable
 ```
 
-This design provides a clean baseline before introducing polarization-aware observations or control.
+For governance:
+
+```text
+Governance Logic
+      ↓
+Operating Region
+      ↓
+Closed-Loop Execution
+      ↓
+Controlled Impact
+```
+
+For PHY:
+
+```text
+Scalar PHY
+      ↓
+Polarization-Aware PHY
+      ↓
+Polarization-Aware State
+      ↓
+Joint Polarization Control
+      ↓
+Hardware Mapping
+```
 
 ---
 
-# Phase 4-A Research Conclusion
+# Research Questions
 
-Phase 4-A successfully integrates a polarization-aware PHY representation into the TA-FDRL-IRF simulation environment while preserving the original SAC controller, state dimensionality, action dimensionality, adaptive trust mechanism, and disabled IRF optimization.
+The project is structured around several research questions.
 
-The six-seed controlled experiment produced:
+## RQ1 — Trust-aware AI control
 
-```text
-Total reward:
-−1.58%
+Can adaptive trust information improve the reliability of autonomous resource allocation in an intelligent radio environment?
 
-Spectral efficiency:
-−1.63%
+## RQ2 — Governance-aware execution
 
-Energy efficiency:
-−1.65%
-```
+Can an autonomous AI action be subjected to explicit governance before reaching the real execution environment?
 
-All six paired seeds produced negative ON−OFF differences for the primary reward metric.
+## RQ3 — Closed-loop trust
 
-Paired statistical testing found statistically detectable differences in:
+Can actual execution outcomes feed back into trust state and influence subsequent governance decisions?
 
-```text
-Total reward
-Mean reward
-Spectral efficiency
-Energy efficiency
-```
+H5-C provides positive evidence for the integration mechanism.
 
-with large paired effect sizes.
+## RQ4 — Polarization-aware PHY
 
-The result is interpreted as a **controlled model-mismatch baseline**, rather than evidence that polarization itself reduces network performance.
+What measurable change occurs when a scalar wireless channel is replaced with a polarization-aware channel representation while the controller remains unchanged?
 
-The central research observation is:
+Phase 4-A provides the controlled baseline.
 
-```text
-More expressive PHY
-        +
-Original controller
-        ↓
-Performance gap
-        ↓
-Need for polarization-aware observability
-        ↓
-Phase 4-B
-```
+## RQ5 — Polarization-aware intelligence
+
+Can explicit polarization observations allow an AI controller to compensate for the performance gap introduced by a more expressive PHY model?
+
+This is investigated in Phase 4-B.
+
+## RQ6 — Joint intelligent radio control
+
+Can resource allocation, trust, governance, IRF configuration, and polarization control be jointly optimized?
+
+This belongs to later phases.
 
 ---
 
@@ -1284,8 +1879,6 @@ Action:
 ```
 
 The purpose is to isolate the effect of **polarization-aware observability**.
-
-The controller will be allowed to perceive information that the Phase-4A controller could not explicitly observe.
 
 ---
 
@@ -1335,13 +1928,11 @@ After establishing the Phase-4B baseline, the project can progress toward joint 
                  Baseband
 ```
 
-The long-term objective is to connect the machine-learning control layer to increasingly realistic physical-layer and hardware abstractions.
-
 ---
 
 # Research-to-Hardware Direction
 
-The eventual architecture is intended to bridge the following layers:
+The eventual architecture is intended to bridge:
 
 ```text
 AI / DRL
@@ -1349,6 +1940,8 @@ AI / DRL
 Network Intelligence
    ↓
 Resource Allocation
+   ↓
+Governance
    ↓
 IRF Control
    ↓
@@ -1377,7 +1970,7 @@ This layered approach is intended to prevent the research from treating the wire
 
 # Research Philosophy
 
-The project follows a controlled progression:
+The project follows a strict controlled-experiment philosophy:
 
 ```text
 Change one major research variable
@@ -1386,16 +1979,28 @@ Validate implementation
         ↓
 Benchmark under controlled conditions
         ↓
-Repeat across multiple seeds
+Repeat across independent seeds
         ↓
 Perform statistical analysis
         ↓
+Document limitations
+        ↓
 Freeze baseline
         ↓
-Introduce next research variable
+Proceed to next phase
 ```
 
-This makes each phase independently interpretable.
+For governance experiments, an additional requirement is enforced:
+
+> **A governance decision must be validated at the execution boundary, not only at the decision boundary.**
+
+For trust experiments:
+
+> **Trust feedback must use the actual executed action and resulting outcome.**
+
+For PHY experiments:
+
+> **The effect of a PHY-model change must be separated from changes in the controller whenever the research question requires causal isolation.**
 
 ---
 
@@ -1412,11 +2017,18 @@ This makes each phase independently interpretable.
 | State = 100                         | ✅ Preserved     |
 | Action = 40                         | ✅ Preserved     |
 | IRF optimization                    | ⏸ Disabled      |
-| PHY validation                      | ✅ Passed        |
+| Phase-4A PHY validation             | ✅ Passed        |
 | Single-seed benchmark               | ✅ Completed     |
 | Six-seed benchmark                  | ✅ Completed     |
 | Common-randomness verification      | ✅ Passed        |
 | Paired statistical analysis         | ✅ Completed     |
+| H5-A governance logic               | ✅ Validated     |
+| H5-B governance operating region    | ✅ Passed        |
+| H5-C closed-loop execution          | ✅ Passed        |
+| Real GovernanceEngine               | ✅ Validated     |
+| Real IRFEnvironment execution       | ✅ Validated     |
+| Real TrustEngine feedback           | ✅ Validated     |
+| Sequential trust propagation        | ✅ Validated     |
 | SAC training for Phase-4A benchmark | ⏸ Not performed |
 | Polarization-aware state            | ⏳ Phase 4-B     |
 | Joint polarization control          | ⏳ Phase 5       |
@@ -1424,9 +2036,226 @@ This makes each phase independently interpretable.
 
 ---
 
+# Current Validated Evidence
+
+The current repository contains two distinct classes of validated evidence.
+
+## PHY Evidence
+
+Phase 4-A establishes:
+
+```text
+Polarization-aware PHY
+        ↓
+Controlled ON/OFF comparison
+        ↓
+Six independent seeds
+        ↓
+Paired statistical analysis
+```
+
+Primary observed changes:
+
+```text
+Total reward:
+−1.58%
+
+Spectral efficiency:
+−1.63%
+
+Energy efficiency:
+−1.65%
+```
+
+The result establishes a controlled model-mismatch baseline.
+
+---
+
+## Governance Evidence
+
+H5-C establishes:
+
+```text
+Candidate Action
+        ↓
+Real GovernanceEngine
+        ↓
+ALLOW / CONSTRAIN / BLOCK
+        ↓
+Real IRFEnvironment
+        ↓
+Real TrustEngine feedback
+        ↓
+Sequential state update
+```
+
+Validated:
+
+```text
+6/6 scenarios
+120/120 environment executions
+120/120 trust feedback calls
+0 environment failures
+100% feedback success
+```
+
+Together, these results establish both:
+
+```text
+Physical-layer model augmentation
+```
+
+and:
+
+```text
+Governance-to-execution closed-loop integration
+```
+
+as independently validated components of the research framework.
+
+---
+
+# Phase 4-A Final Conclusion
+
+Phase 4-A successfully integrates a polarization-aware PHY representation into the TA-FDRL-IRF simulation environment while preserving:
+
+* the original SAC controller
+* the 100-dimensional state
+* the 40-dimensional action space
+* the adaptive trust mechanism
+* disabled IRF optimization
+
+The six-seed controlled experiment produced:
+
+```text
+Total reward:
+−1.58%
+
+Spectral efficiency:
+−1.63%
+
+Energy efficiency:
+−1.65%
+```
+
+All six seeds produced negative ON−OFF differences for the primary reward metric.
+
+Paired statistical testing found statistically detectable differences in:
+
+```text
+Total reward
+Mean reward
+Spectral efficiency
+Energy efficiency
+```
+
+with large paired effect sizes.
+
+The result is interpreted as a **controlled model-mismatch baseline**, rather than evidence that polarization itself reduces network performance.
+
+The central research observation is:
+
+```text
+More expressive PHY
+        +
+Original controller
+        ↓
+Performance gap
+        ↓
+Need for polarization-aware observability
+        ↓
+Phase 4-B
+```
+
+---
+
+# H5-C Final Conclusion
+
+H5-C successfully demonstrates that governance decisions can be propagated through the real execution path of the TA-FDRL-IRF system.
+
+The validated loop is:
+
+```text
+Candidate Action
+      ↓
+GovernanceEngine
+      ↓
+ALLOW / CONSTRAIN / BLOCK
+      ↓
+Actual Executed Action
+      ↓
+IRFEnvironment
+      ↓
+Execution Outcome
+      ↓
+TrustEngine Feedback
+      ↓
+Updated Trust State
+      ↓
+Next Governance Decision
+```
+
+The benchmark validated:
+
+```text
+Real GovernanceEngine       : PASS
+Real IRF execution          : PASS
+ALLOW gate                  : PASS
+CONSTRAIN gate              : PASS
+BLOCK gate                  : PASS
+Execution isolation         : PASS
+Fallback execution          : PASS
+Trust feedback integration  : PASS
+Trust history continuity    : PASS
+Sequential state propagation: PASS
+```
+
+Therefore:
+
+> **H5-C establishes a research-grade closed-loop governance execution path in which governance decisions are enforced at the real IRF environment boundary and execution outcomes are returned to the real TrustEngine for sequential state evolution.**
+
+---
+
+# Next Research Step
+
+The immediate next scientific experiment is:
+
+```text
+H5-C
+Closed-Loop Governance
+        ↓
+H5-D
+Controlled Governance Impact
+        ↓
+Phase 4-B
+Polarization-Aware State
+```
+
+H5-D should not simply repeat H5-C.
+
+Instead, it should ask:
+
+> **Does governance intervention measurably change system-level risk, trust, reward, spectral efficiency, energy efficiency, or execution behavior compared with an unguided/control condition?**
+
+This creates the transition from:
+
+```text
+"Governance works"
+```
+
+to:
+
+```text
+"Governance has measurable system-level effects"
+```
+
+After that, Phase 4-B can investigate whether polarization-aware observability allows the AI controller to respond intelligently to the richer PHY.
+
+---
+
 # Citation
 
-If this repository is used in academic research, please cite the corresponding project/paper when available.
+If this repository is used in academic research, please cite the corresponding project or publication when available.
 
 A formal citation will be added as the research publication matures.
 
@@ -1460,10 +2289,28 @@ Research interests include:
 
 # Acknowledgment
 
-This project is developed as an experimental research framework for studying the interaction between **trust-aware AI, reinforcement learning, intelligent radio environments, and increasingly realistic wireless physical-layer models**.
+This project is developed as an experimental research framework for studying the interaction between:
+
+```text
+Trust-Aware AI
+        +
+Reinforcement Learning
+        +
+Governance
+        +
+Intelligent Radio Fabric
+        +
+Wireless Physical Layer
+        +
+Polarization
+        +
+Future Hardware Control
+```
+
+The project follows a controlled, reproducible, phase-based methodology intended to connect AI-level decisions with increasingly realistic radio-system abstractions.
 
 ---
 
-## Phase-4A Final Statement
+# Final Research Statement
 
-> **Phase 4-A establishes the first polarization-aware PHY baseline of TA-FDRL-IRF. By introducing a 2×2 polarization channel while keeping the SAC controller, 100-dimensional state, 40-dimensional action space, adaptive trust mechanism, and IRF optimization setting unchanged, the experiment isolates the performance impact of PHY-level polarization modeling. The resulting performance gap provides the controlled motivation for Phase 4-B, where polarization-aware observations will be introduced into the learning state.**
+> **TA-FDRL-IRF investigates a path from trust-aware autonomous AI decision making to governed execution inside an Intelligent Radio Fabric environment, while progressively increasing the physical realism of the wireless model. Phase 4-A establishes a polarization-aware PHY baseline under a fixed controller, and H5-C establishes a real governance-to-IRF-to-trust closed loop. Together, these validated components provide the foundation for polarization-aware observability, controlled governance impact analysis, joint intelligent radio control, and eventual hardware-oriented mapping.**
