@@ -7,3 +7,12 @@ venv/
 .mypy_cache/
 .ipynb_checkpoints/
 results_phase3_pretraining_backup/
+
+# Local dashboard backups
+dashboard/app_backup.py
+dashboard/app.py.bak
+dashboard/live_runner_before_trust_feedback.py
+
+# Phase-4B.2 training artifacts not required by production dashboard
+results/phase4b2/
+results/phase4b2/**/final_sac.pt
